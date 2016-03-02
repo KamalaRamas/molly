@@ -1,0 +1,6 @@
+include "./raft_edb.ded";
+include "./leader_elect.ded";
+
+log(Node, Index, Term, Pload):- role(Node,"L"), clireq(Node, Pload), term( Node, Term), indx(Node, Index);
+clireq(Neighbor, Pload) :- role(Node, "F"), clireq(Node, Pload), node(Node, Neighbor), role(Neighbor, "L");
+log(Node, Index, Term, Pload)@next :- log(Node, Index, Term, Pload);

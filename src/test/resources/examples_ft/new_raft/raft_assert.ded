@@ -1,0 +1,2 @@
+pre(X) :- node(X,_);
+post(X) :- pre(X);

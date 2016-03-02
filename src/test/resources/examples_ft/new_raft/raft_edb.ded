@@ -1,0 +1,52 @@
+clireq("b", "x=1")@2;
+clireq("a", "y=2")@3;
+
+node("a","b")@1;
+node("a","c")@1;
+node("a","d")@1;
+node("a","e")@1;
+node("b","a")@1;
+node("b","c")@1;
+node("b","d")@1;
+node("b","e")@1;
+node("c","a")@1;
+node("c","b")@1;
+node("c","d")@1;
+node("c","e")@1;
+node("d","b")@1;
+node("d","c")@1;
+node("d","a")@1;
+node("d","e")@1;
+node("e","b")@1;
+node("e","c")@1;
+node("e","d")@1;
+node("e","a")@1;
+node(Node, Neighbor)@next :- node(Node, Neighbor);
+
+commitindex("a",0)@1;
+commitindex("b",0)@1;
+commitindex("c",0)@1;
+commitindex("d",0)@1;
+commitindex("e",0)@1;
+commitindex(Node, Index)@next :- commitindex(Node, Index);
+
+lastapplied("a",0)@1;
+lastapplied("b",0)@1;
+lastapplied("c",0)@1;
+lastapplied("d",0)@1;
+lastapplied("e",0)@1;
+lastapplied(Node, Index)@next :- lastapplied(Node, Index);
+
+indx("a",1)@1;
+indx("b",1)@1;
+indx("c",1)@1;
+indx("d",1)@1;
+indx("e",1)@1;
+indx(Node, Index)@next :- indx(Node, Index);
+
+term("a",0)@1;
+term("b",0)@1;
+term("c",0)@1;
+term("d",0)@1;
+term("e",0)@1;
+term(Node, Term)@next :- term(Node, Term);
