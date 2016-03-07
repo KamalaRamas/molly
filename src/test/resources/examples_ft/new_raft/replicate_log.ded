@@ -1,6 +1,26 @@
 include "./raft_edb.ded";
 include "./leader_elect.ded";
 
-log(Node, Index, Term, Pload):- role(Node,"L"), clireq(Node, Pload), term( Node, Term), indx(Node, Index);
-clireq(Neighbor, Pload) :- role(Node, "F"), clireq(Node, Pload), node(Node, Neighbor), role(Neighbor, "L");
+//re-direct client request to follower to be handled by leader
+clireq(Neighbor, Pload, Reqindex) :- role(Node, "F"), clireq(Node, Pload, Reqindex), node(Node, Neighbor), role(Neighbor, "L");
+min_req(Node, min<Reqindex>) :- clireq(Node, _, Reqindex), role(Node, "L");
+extract_req(Node, Pload, Reqindex)@next :- clireq(Node, Pload, Reqindex), min_req(Node, Reqindex);
+del_req(Node, Pload, Reqindex)@next :- clireq(Node, Pload, Reqindex), min_req(Node, Reqindex);
+
+// Increment index on leader and log request
+indx(Node, Index)@next :- indx(Node, Index), notin extract_req(_, _,_);
+indx(Node, Index+1)@next :- indx(Node, Index), extract_req(_, _, _);
+log(Node, Index+1, Term, Pload):- extract_req(Node, Pload, Reqindex), term( Node, Term), indx(Node, Index);
 log(Node, Index, Term, Pload)@next :- log(Node, Index, Term, Pload);
+
+//Propagate payload to other nodes, assume termand index match. Record
+//acknowledgements.
+log(Neighbor, Index, Term, Pload)@async :- role(Node, "L"), log(Node, Index, Term, Pload), node(Node, Neighbor), notin ack(Leader, Neighbor, Index, Term, Pload);
+ack(Leader, Node, Index, Term, Pload)@async :- log(Node, Index,Term, Pload), notin ack(Leader, Node, Index, Term, Pload), node(Node, Leader), role(Leader,"L");
+accounted(Leader, Node, Index, Term)@next :- ack(Leader, Node, Index, Term, Pload), role(Leader, "L");
+ack(Leader, Node, Index, Term, Pload)@next :- ack(Leader, Node, Index, Term, Pload);
+accounted(Leader, Node, Index, Term)@next :- accounted(Leader, Node, Index, Term);
+
+//Based on reaching quorum, commit
+quorum(Node, Term, Index, 1) :- role(Node, "L"), term( Node, Term), indx(Node, Index);
+//quorum(Leader, Term, Index, Value+1) :- quorum(Leader, Term, Index, Value), ack(Leader, Node, Index, Term, Pload), notin accounted(Leader, Node, Index, Term), role(Leader, "L");

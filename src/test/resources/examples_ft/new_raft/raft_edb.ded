@@ -1,5 +1,5 @@
-clireq("b", "x=1")@2;
-clireq("a", "y=2")@3;
+clireq("b", "x=1", 1)@2;
+clireq("a", "y=2", 2)@3;
 
 node("a","b")@1;
 node("a","c")@1;
@@ -37,12 +37,11 @@ lastapplied("d",0)@1;
 lastapplied("e",0)@1;
 lastapplied(Node, Index)@next :- lastapplied(Node, Index);
 
-indx("a",1)@1;
-indx("b",1)@1;
-indx("c",1)@1;
-indx("d",1)@1;
-indx("e",1)@1;
-indx(Node, Index)@next :- indx(Node, Index);
+indx("a",0)@1;
+indx("b",0)@1;
+indx("c",0)@1;
+indx("d",0)@1;
+indx("e",0)@1;
 
 term("a",0)@1;
 term("b",0)@1;

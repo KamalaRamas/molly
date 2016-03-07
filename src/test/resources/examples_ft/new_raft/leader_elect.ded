@@ -1,6 +1,6 @@
 include "./raft_edb.ded";
 
-role("a","l")@1;
+role("a","L")@1;
 role("b","F")@1;
 role("c","F")@1;
 role("d","F")@1;
