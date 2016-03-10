@@ -4,23 +4,28 @@ include "./leader_elect.ded";
 //re-direct client request to follower to be handled by leader
 clireq(Neighbor, Pload, Reqindex) :- role(Node, "F"), clireq(Node, Pload, Reqindex), node(Node, Neighbor), role(Neighbor, "L");
 min_req(Node, min<Reqindex>) :- clireq(Node, _, Reqindex), role(Node, "L");
-extract_req(Node, Pload, Reqindex)@next :- clireq(Node, Pload, Reqindex), min_req(Node, Reqindex);
+extract_req(Node, Pload, Reqindex)@next :- clireq(Node, Pload, Reqindex), min_req(Node, Reqindex), notin del_req(Node, Pload, Reqindex);
 del_req(Node, Pload, Reqindex)@next :- clireq(Node, Pload, Reqindex), min_req(Node, Reqindex);
 
 // Increment index on leader and log request
-indx(Node, Index)@next :- indx(Node, Index), notin extract_req(_, _,_);
-indx(Node, Index+1)@next :- indx(Node, Index), extract_req(_, _, _);
-log(Node, Index+1, Term, Pload):- extract_req(Node, Pload, Reqindex), term( Node, Term), indx(Node, Index);
+nextindx(Node, Index)@next :- nextindx(Node, Index), notin extract_req(_, _,_);
+nextindx(Node, Index+1)@next :- nextindx(Node, Index), extract_req(_, _, _);
+log(Node, Index, Term, Pload):- extract_req(Node, Pload, Reqindex), term( Node, Term), nextindx(Node, Index);
 log(Node, Index, Term, Pload)@next :- log(Node, Index, Term, Pload);
 
-//Propagate payload to other nodes, assume termand index match. Record
+//Propagate payload to other nodes, assume term and index match. Record
 //acknowledgements.
-log(Neighbor, Index, Term, Pload)@async :- role(Node, "L"), log(Node, Index, Term, Pload), node(Node, Neighbor), notin ack(Leader, Neighbor, Index, Term, Pload);
-ack(Leader, Node, Index, Term, Pload)@async :- log(Node, Index,Term, Pload), notin ack(Leader, Node, Index, Term, Pload), node(Node, Leader), role(Leader,"L");
-accounted(Leader, Node, Index, Term)@next :- ack(Leader, Node, Index, Term, Pload), role(Leader, "L");
-ack(Leader, Node, Index, Term, Pload)@next :- ack(Leader, Node, Index, Term, Pload);
-accounted(Leader, Node, Index, Term)@next :- accounted(Leader, Node, Index, Term);
+append_entry(Neighbor, Index, Term, Pload)@async :- role(Node, "L"), log(Node, Index, Term, Pload), node(Node, Neighbor), notin ack(Leader, Neighborid, Index, Term, Pload), nodeid(Neighbor, Neighborid);
+log(Node, Index, Term, Pload) :- append_entry(Node, Index, Term, Pload);
+ack(Leader, Nodeid, Index, Term, Pload)@async :- log(Node, Index, Term, Pload), notin ack(Leader, Nodeid, Index, Term, Pload), node(Node, Leader), role(Leader,"L"), nodeid(Node, Nodeid);
+ack(Leader, Nodeid, Index, Term, Pload)@next :- ack(Leader, Nodeid, Index, Term, Pload);
+
+//pipeline acks
+ack_pipe(Leader, min<Nodeid>, min<Index>, Term) :- ack(Leader, Nodeid, Index, Term, _), notin del_ack_pipe(Leader, Nodeid, Index, Term);
+del_ack_pipe(Leader, Nodeid, Index, Term)@next :- ack_pipe(Leader, Nodeid, Index, Term);
+del_ack_pipe(Leader, Nodeid, Index, Term)@next :- del_ack_pipe(Leader, Nodeid, Index, Term);
 
 //Based on reaching quorum, commit
-quorum(Node, Term, Index, 1) :- role(Node, "L"), term( Node, Term), indx(Node, Index);
-//quorum(Leader, Term, Index, Value+1) :- quorum(Leader, Term, Index, Value), ack(Leader, Node, Index, Term, Pload), notin accounted(Leader, Node, Index, Term), role(Leader, "L");
+quorum(Node, Term, Index, 1) :- role(Node, "L"), term( Node, Term), nextindx(Node, Index), extract_req(Node, _, _);
+quorum(Node, Term, Index, Value)@next :- quorum(Node, Term, Index, Value), notin ack_pipe(Node, _, Index, Term);
+quorum(Leader,Term,Index,Value+1)@next :- quorum(Leader, Term, Index, Value), ack_pipe(Leader, _, Index, Term), notin del_ack_pipe(Leader, _, Index, Term);

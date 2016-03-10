@@ -23,6 +23,13 @@ node("e","d")@1;
 node("e","a")@1;
 node(Node, Neighbor)@next :- node(Node, Neighbor);
 
+nodeid("a",1)@1;
+nodeid("b",2)@1;
+nodeid("c",3)@1;
+nodeid("d",4)@1;
+nodeid("e",5)@1;
+nodeid(Node, Id)@next :- nodeid(Node, Id);
+
 commitindex("a",0)@1;
 commitindex("b",0)@1;
 commitindex("c",0)@1;
@@ -37,15 +44,15 @@ lastapplied("d",0)@1;
 lastapplied("e",0)@1;
 lastapplied(Node, Index)@next :- lastapplied(Node, Index);
 
-indx("a",0)@1;
-indx("b",0)@1;
-indx("c",0)@1;
-indx("d",0)@1;
-indx("e",0)@1;
+nextindx("a",1)@1;
+nextindx("b",1)@1;
+nextindx("c",1)@1;
+nextindx("d",1)@1;
+nextindx("e",1)@1;
 
-term("a",0)@1;
-term("b",0)@1;
-term("c",0)@1;
-term("d",0)@1;
-term("e",0)@1;
+term("a",1)@1;
+term("b",1)@1;
+term("c",1)@1;
+term("d",1)@1;
+term("e",1)@1;
 term(Node, Term)@next :- term(Node, Term);
