@@ -21,11 +21,22 @@ ack(Leader, Nodeid, Index, Term, Pload)@async :- log(Node, Index, Term, Pload), 
 ack(Leader, Nodeid, Index, Term, Pload)@next :- ack(Leader, Nodeid, Index, Term, Pload);
 
 //pipeline acks
-ack_pipe(Leader, min<Nodeid>, min<Index>, Term) :- ack(Leader, Nodeid, Index, Term, _), notin del_ack_pipe(Leader, Nodeid, Index, Term);
+ack_pipe(Leader, min<Nodeid>, Index, Term) :- ack(Leader, Nodeid, Index, Term, _), notin del_ack_pipe(Leader, Nodeid, Index, Term);
 del_ack_pipe(Leader, Nodeid, Index, Term)@next :- ack_pipe(Leader, Nodeid, Index, Term);
 del_ack_pipe(Leader, Nodeid, Index, Term)@next :- del_ack_pipe(Leader, Nodeid, Index, Term);
 
 //Based on reaching quorum, commit
 quorum(Node, Term, Index, 1) :- role(Node, "L"), term( Node, Term), nextindx(Node, Index), extract_req(Node, _, _);
 quorum(Node, Term, Index, Value)@next :- quorum(Node, Term, Index, Value), notin ack_pipe(Node, _, Index, Term);
-quorum(Leader,Term,Index,Value+1)@next :- quorum(Leader, Term, Index, Value), ack_pipe(Leader, _, Index, Term), notin del_ack_pipe(Leader, _, Index, Term);
+quorum(Leader,Term,Index,Value+1)@next :- quorum(Leader, Term, Index, Value), ack_pipe(Leader, Nodeid, Index, Term), notin del_ack_pipe(Leader, Nodeid, Index, Term);
+
+system("n",5)@1;
+system(Number, Value)@next :- system(Number, Value);
+
+to_commit(Node, Term, Index) :- quorum(Node, Term, Index, Numacks), Numacks > 2, commitindex(Node, Lastindx), Index == Lastindx + 1;
+commitindex(Neighbor, Index)@next :- commitindex(Neighbor, Index), node(Node, Neighbor), role(Node, "L"), notin to_commit(Node, Term, Newindex);
+commitindex(Node, Index)@next :- commitindex(Node, Index), role(Node, "L"), notin to_commit(Node, Term, Newindex);
+commitindex(Neighbor, Newindex)@next :- commitindex(Neighbor, Index), node(Node, Neighbor), role(Node, "L"), to_commit(Node, Term, Newindex), Newindex == Index + 1;
+commitindex(Node, Newindex)@next :- commitindex(Node, Index), role(Node, "L"), to_commit(Node, Term, Newindex),Newindex == Index +1;
+
+
