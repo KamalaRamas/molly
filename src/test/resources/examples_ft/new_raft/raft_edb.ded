@@ -1,5 +1,5 @@
-clireq("b", "x=1", 1)@2;
-clireq("a", "y=2", 2)@3;
+clireq("b", 1, 1)@2;
+clireq("a", 2, 2)@3;
 
 node("a","b")@1;
 node("a","c")@1;

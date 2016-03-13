@@ -11,17 +11,49 @@ del_req(Node, Pload, Reqindex)@next :- clireq(Node, Pload, Reqindex), min_req(No
 nextindx(Node, Index)@next :- nextindx(Node, Index), notin extract_req(_, _,_);
 nextindx(Node, Index+1)@next :- nextindx(Node, Index), extract_req(_, _, _);
 log(Node, Index, Term, Pload):- extract_req(Node, Pload, Reqindex), term( Node, Term), nextindx(Node, Index);
-log(Node, Index, Term, Pload)@next :- log(Node, Index, Term, Pload);
+log(Node, Index, Term, Pload)@next :- log(Node, Index, Term, Pload), notin overwrite_rewind(Node, Index, Term, _,_, _);
 
 //Propagate payload to other nodes, assume term and index match. Record
-//acknowledgements.
-append_entry(Neighbor, Index, Term, Pload)@async :- role(Node, "L"), log(Node, Index, Term, Pload), node(Node, Neighbor), notin ack(Leader, Neighborid, Index, Term, Pload), nodeid(Neighbor, Neighborid);
-log(Node, Index, Term, Pload) :- append_entry(Node, Index, Term, Pload);
+//acknowledgements. Term,the last variable,  is an intermediate value in int_append_entry
+int_append_entry(Neighbor, Index, Term, Pload, Index-1, Term) :- role(Node, "L"), log(Node, Index, Term, Pload), node(Node, Neighbor), notin ack(Leader, Neighborid, Index, Term, Pload), nodeid(Neighbor, Neighborid),  Index > 1;// log(Node, Index-1, Prevterm, Data); 
+append_entry(Node, Index, Term, Pload, Previndex, Prevterm)@async :- int_append_entry(Node, Index, Term, Pload, Previndex, _), log(Leader, Previndex, Prevterm, _), role(Leader, "L"); 
+append_entry(Neighbor, Index, Term, Pload, 0, 0)@async :- role(Node, "L"), log(Node, Index, Term, Pload), node(Node, Neighbor), notin ack(Leader, Neighborid, Index, Term, Pload), nodeid(Neighbor, Neighborid), Index==1;
+
+//check for log matching property
+node_not_current(Node, Index, Curterm) :- append_entry(Node, Index, Curterm, _, _, _), term(Node, Term), Term!=Curterm;
+
+// If this is the first entry, logs match vacuously
+log_match(Node, Index, Term, Pload) :- append_entry(Node, Index, Term, Pload, Previndex, Prevterm), notin node_not_current(Node, Index, Term), Prevterm==0, Previndex==0;
+
+//When logs match - easy case - i should have known this would jinx it :(
+log_match(Node, Index, Term, Pload) :- append_entry(Node, Index, Term, Pload, Previndex, Prevterm), Previndex!=0, role(Leader, "L"), log(Leader, Previndex, Prevterm, Pload1), log(Node, Previndex, Prevterm, Pload2), Pload1==Pload2, notin node_not_current(Node, Index, Term);
+
+//Logs do not match - overwrite on follower
+retain_log_entry(Node, Index+1, Term, Pload)@next :- append_entry(Node, Index, Term, Pload, _, _), notin log_match(Node, Term, Index, Pload);
+retain_log_entry(Node, Index+1, Term, Pload)@next :- retain_log_entry(Node, Index, Term, Pload), notin log_match(Node, Term, Index, Pload);
+
+overwrite_rewind(Node, Previndex, Prevterm, Pload, 0,0):- append_entry(Node, Index, Term,_, Previndex, Prevterm), notin overwrite_log_ack(Leader, Node, Term, Index, Pload), notin log_match(Node, Index, Term,  _), role(Leader, "L"), log(Leader, Previndex, PrevTerm, Pload), Previndex==1;
+// Term, the last variable, is a placeholder value in int_overwrite_rewind log
+int_overwrite_rewind(Node, Previndex, Prevterm, Pload, Previndex-1, Term):- append_entry(Node, Index, Term,_, Previndex, Prevterm), notin overwrite_log_ack(Leader, Node, Term, Index, Pload), notin log_match(Node, Index, Term, _), role(Leader, "L"), log(Leader, Previndex, PrevTerm, Pload), Previndex > 1;
+overwrite_rewind(Node, Index, Term, Pload, Previndex, Corrterm):- int_overwrite_rewind(Node, Index, Term, Pload, Previndex, _), role(Leader, "L"),  log(Leader, Previndex, Corrterm, _);
+log(Node, Index, Term, Pload) :- overwrite_rewind(Node, Index, Term, Pload,_, _);
+log(Node, Index, Term, Pload)@next :- log(Node, Term, Index, Pload), overwrite_rewind(Node, Index, Term, Pload,_, _), notin overwrite_log_ack(Leader, Node, Index,Term, Pload), role(Leader, "L");
+overwrite_log_ack(Leader, Node, Index, Term, Pload)@async :- log(Node, Index, Term, Pload), role(Leader, "L"), overwrite_rewind(Node, Index, Term, Pload,_,_);
+
+log_match(Node, Index, Term, Pload) :- overwrite_rewind(Node, _, _, _, Previndex, Prevterm), Previndex==0, Prevterm==0, nextindx(Node, Index), term(Node, Term), retain_log_entry(Node, Index, Term, Pload);
+log_match(Node, Index-1, Term, Pload) :- overwrite_rewind(Node, _, _, _, Previndex, Prevterm), role(Leader, "L"), log(Leader, Previndex, Prevterm, Pload1), log(Node, Previndex, Prevterm, Pload2), Pload1==Pload2, nextindx(Node, Index), term(Node, Term), retain_log_entry(Node, Index, Term, Pload);
+overwrite_rewind(Node, Previndex, Prevterm, Pload1, 0, 0) :- overwrite_rewind(Node,Index, Term, _, Previndex, Prevterm), role(Leader, "L"), log(Leader, Previndex, Prevterm, Pload1), log(Node, Previndex, Prevterm, Pload2), Pload1!=Pload2, Previndex==1;
+//Thelastvariable,Term and Pload1 is a placeholder
+int_overwrite_rewind(Node, Previndex, Prevterm, Pload1, Previndex-1, Term) :- overwrite_rewind(Node,Index, Term, _, Previndex, Prevterm), role(Leader, "L"), log(Leader, Previndex, Prevterm, Pload1), log(Node, Previndex, Prevterm, Pload2), Pload1!=Pload2, Previndex>1;
+overwrite_rewind(Node, Index, Term, Pload, Previndex, Prevterm) :- int_overwrite_rewind(Node,Index, Term, _, Previndex, _), role(Leader, "L"), log(Leader, Previndex, Prevterm, Pload);
+
+//log_match says its ok to now replicate index, term on all followers
+log(Node, Index, Term, Pload) :- log_match(Node, Index, Term, Pload);
 ack(Leader, Nodeid, Index, Term, Pload)@async :- log(Node, Index, Term, Pload), notin ack(Leader, Nodeid, Index, Term, Pload), node(Node, Leader), role(Leader,"L"), nodeid(Node, Nodeid);
 ack(Leader, Nodeid, Index, Term, Pload)@next :- ack(Leader, Nodeid, Index, Term, Pload);
 
 //pipeline acks
-ack_pipe(Leader, min<Nodeid>, Index, Term) :- ack(Leader, Nodeid, Index, Term, _), notin del_ack_pipe(Leader, Nodeid, Index, Term);
+ack_pipe(Leader, min<Nodeid>, Index, Term) :- ack(Leader, Nodeid, Index, Term, _), notin del_ack_pipe(Leader, Nodeid, Index, Term);// nextindx(Leader, Leaderindx), Leaderindx > Index;
 del_ack_pipe(Leader, Nodeid, Index, Term)@next :- ack_pipe(Leader, Nodeid, Index, Term);
 del_ack_pipe(Leader, Nodeid, Index, Term)@next :- del_ack_pipe(Leader, Nodeid, Index, Term);
 
