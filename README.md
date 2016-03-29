@@ -111,3 +111,4 @@ Molly is described in a [SIGMOD paper](http://people.ucsc.edu/~palvaro/molly.pdf
 
 Dedalus is described [here](http://www.eecs.berkeley.edu/Pubs/TechRpts/2009/EECS-2009-173.html).
 
+Check if ssh works fine
