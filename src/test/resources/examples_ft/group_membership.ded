@@ -1,0 +1,22 @@
+include "util/timeout_svc.ded";
+
+timer_svc(G, G, 2) :- group(G, G)@1;
+timer_svc(Master,Node,5) :- ping(Master, Node), group(Node, G);
+
+// "establish group membership" as a replica
+member(G, M)@async :- begin(M), group(M, G);
+clients(G, C)@async :- client(C), group(M, G);
+
+member(G, M)@next :- member(G, M), notin member_removed(G,M);
+leader(G, L)@next :- leader(G, L);
+clients(G, C)@next :- clients(G, C);
+group(M, G)@next :- group(M, G);
+master(G,H)@next :- master(G,H);
+
+// periodically tell clients and replicas about membership and leadership
+member(C, M)@async :- member(G, M), clients(G, C), group(G,G), timeout(G, G);
+member(A, M)@async :- member(G, A), member(G, M), group(G,G), timeout(G, G);
+leader(M, L)@async :- leader(G, L), member(G, M), group(G, G), timeout(G, G);
+leader(M, L)@async :- leader(G, L), clients(G, M), group(G,G), timeout(G, G);
+master(M,H)@async :- master(G,H), member(G,M), group(G, G), timeout(G, G);
+master(M,H)@async :- master(G,H), clients(G, M), group(G,G), timeout(G, G);

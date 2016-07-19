@@ -1,0 +1,44 @@
+include "group_membership.ded";
+
+// replica init
+group("a", "G")@1;
+group("b", "G")@1;
+group("c", "G")@1;
+group("C", "G")@1;
+group("H", "G")@1;
+group("G", "G")@1;
+begin("a")@1;
+begin("b")@1;
+begin("c")@1;
+
+// client init
+client("C")@1;
+
+// bogus stuff
+master("G", "H")@1;
+leader("G", "a")@1;
+member("G", "a")@1;
+member("G", "H")@1;
+
+//At time 1
+//ping("H","a",1)@1;
+//ping("H","b",1)@1;
+//ping("H","c",1)@1;
+ping(Master, Node) :- master(G, Master), begin(Node);
+
+//ping all nodes in the group from master
+ping(Master,Node) :- timeout(Master,Node), ping_ack(Node, Master);
+
+ping_unack(Node, Master)@next :- ping(Master, Node);
+ping_unack(Node, Master)@next :- ping_unack(Node, Master), notin ping_ack(Node, Master);
+ping_ack(Node, Master)@async :- ping_unack(Node, Master);
+ping_ack(Node, Master)@next :- ping_ack(Node, Master);
+
+pre(X) :- group(X,_), notin crash(X,X,_);
+post(X) :- notin group(X,_);
+
+//pre(X) :- ping_unack(X,_,_);
+//post(X) :- ping_unack(X,_,_), notin timeout(_,X), notin crash(R,R,_);
+
+//pre(X) :- timeout(_,X);
+//post(X) :- ping_ack(X,_,_), timeout(_,X), notin crash(R,R,_);
