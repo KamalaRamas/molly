@@ -32,7 +32,7 @@ ping(Master,Node) :- timeout(Master,Node), ping_ack(Node, Master);
 ping_unack(Node, Master)@next :- ping(Master, Node);
 ping_unack(Node, Master)@next :- ping_unack(Node, Master), notin ping_ack(Node, Master);
 ping_ack(Node, Master)@async :- ping_unack(Node, Master);
-ping_ack(Node, Master)@next :- ping_ack(Node, Master);
+ping_ack(Node, Master)@next :- ping_ack(Node, Master), notin ping_unack(Node, Master);
 
 pre(X) :- group(X,_), notin crash(X,X,_);
 post(X) :- notin group(X,_);
