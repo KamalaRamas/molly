@@ -13,7 +13,7 @@ missing_ack(Leader, Data, Other) :- leader_write(Leader, Data, _), member(Leader
 exclude(M)@async :- write(M, D, Origin), leader(M, Leader), Leader!=M, Leader!=Origin;
 exclude(M)@next :- exclude(M);
 write(Leader, D, M)@async :- write(M, D, Origin), leader(M, Leader), Leader!=M;
-writeiN,D,O)@next :- write(N, D, O);
+write(N,D,O)@next :- write(N, D, O);
 chain_ack(Origin, Data, Acker)@async :- write(Acker, Data, Origin), notin clients("Z", Origin), write(Acker2, Data, Acker), chain_ack(Acker, Data, Acker2), notin leader(Acker, Acker);
 ack(Origin, Data, Acker)@async :- write(Acker, Data, Origin), zookeeper(Z,Z), clients(Z,Origin),  write(Node, Data, Acker), chain_ack(Acker, Data, Node), notin leader(Acker,Acker);
 ack(Origin,Data,Acker)@async :- chain_ack(Origin, Data, Acker), zookeeper(Z,Z), clients(Z, Origin), leader(Acker,Acker);
@@ -40,8 +40,7 @@ leader("Z", "a")@1;
 member("Z", "a")@1;
 
 // write stream. This is a write to a non-primary. Write to primary can be 
-// simulated by chaging the destination to "a" instead of "b"
-write("b", "Data1", "C")@2;
+write("b", "Data1", "C")@1;
 
 // assertions
 tried(C, D)@next :- tried(C, D);
