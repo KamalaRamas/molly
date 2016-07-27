@@ -1,57 +1,93 @@
-include "custom_zk.ded";
+include "group.ded";
 
-// leader to replicas
-leader_write(Next, Data, Origin)@async :- write(Origin, Data, Prev), member(Origin, Next), Origin!=Next, leader(Origin, Origin), notin exclude(Next), notin ack_int(Origin, Data, Next);
-leader_write(N,D,O)@next :- leader_write(N, D, O);
-ack_int(Origin, Data, Acker)@async :- leader_write(Acker, Data, Origin), notin leader(Acker, Acker);
-ack_int(O,D,A)@next :- ack_int(O,D,A);
-chain_ack(O,D,A)@next :- chain_ack(O,D,A);
-chain_ack(Origin, Data, Acker)@async :- leader(Acker, Acker), write(Acker, Data, Origin), Origin != Acker, notin missing_ack(Acker, Data, _);
-missing_ack(Leader, Data, Other) :- leader_write(Leader, Data, _), member(Leader, Other),  Leader != Other, notin exclude(Other), notin ack_int(Leader, Data, Other);
+// primary to replicas
+primary_write(Next, Term, Seq, Data, Origin)@async :- write(Origin, Term, Seq, Data, Prev), member(Origin, Next), Origin!=Next, primary(Origin, Origin), notin exclude(Next), notin ack_int(Origin, Term, Seq, Data, Next), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+primary_write(N, Term, Seq, D, O)@next :- primary_write(N, Term, Seq, D, O);
+ack_int(Origin, Term, Seq, Data, Acker)@async :- primary_write(Acker, Term, Seq, Data, Origin), notin primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+ack_int(O, Term, Seq, D, A)@next :- ack_int(O, Term, Seq, D, A);
+chain_ack(O, Term, Seq, D, A)@next :- chain_ack(O, Term, Seq, D, A);
+chain_ack(Origin, Term, Seq, Data, Acker)@async :- primary(Acker, Acker), write(Acker, Term, Seq, Data, Origin), Origin != Acker, notin missing_ack(Acker, Term, Seq, Data, _), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+missing_ack(Primary, Term, Seq, Data, Other) :- primary_write(Primary, Term, Seq, Data, _), member(Primary, Other),  Primary != Other, notin exclude(Other), notin ack_int(Primary, Term, Seq, Data, Other), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
 
-//Route to leader
-exclude(M)@async :- write(M, D, Origin), leader(M, Leader), Leader!=M, Leader!=Origin;
+//Route to primary
+exclude(M)@async :- write(M, _, _, _, Origin), primary(M, Primary), Primary!=M, Primary!=Origin;
 exclude(M)@next :- exclude(M);
-write(Leader, D, M)@async :- write(M, D, Origin), leader(M, Leader), Leader!=M;
-write(N,D,O)@next :- write(N, D, O);
-chain_ack(Origin, Data, Acker)@async :- write(Acker, Data, Origin), notin clients("Z", Origin), write(Acker2, Data, Acker), chain_ack(Acker, Data, Acker2), notin leader(Acker, Acker);
-ack(Origin, Data, Acker)@async :- write(Acker, Data, Origin), zookeeper(Z,Z), clients(Z,Origin),  write(Node, Data, Acker), chain_ack(Acker, Data, Node), notin leader(Acker,Acker);
-ack(Origin,Data,Acker)@async :- chain_ack(Origin, Data, Acker), zookeeper(Z,Z), clients(Z, Origin), leader(Acker,Acker);
-ack(Origin, Data, Acker)@next :- ack(Origin, Data, Acker);
+write(Primary, Term, Seq, D, M)@async :- write(M, Term, Seq, D, Origin), primary(M, Primary), Primary!=M, group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+write(N, Term, Seq, D, O)@next :- write(N, Term, Seq, D, O);
+chain_ack(Origin, Term, Seq, Data, Acker)@async :- write(Acker, Term, Seq, Data, Origin), notin clients("G", Origin), write(Acker2, Term, Seq, Data, Acker), chain_ack(Acker, Term, Seq, Data, Acker2), notin primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+ack(Origin, Term, Seq, Data, Acker)@async :- write(Acker, Term, Seq, Data, Origin), group(G,G), clients(G,Origin),  write(Node, Term, Seq, Data, Acker), chain_ack(Acker, Term, Seq, Data, Node), notin primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+ack(Origin, Term, Seq, Data, Acker)@async :- chain_ack(Origin, Term, Seq, Data, Acker), group(G, G), clients(G, Origin), primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+ack(Origin, Term, Seq, Data, Acker)@next :- ack(Origin, Term, Seq, Data, Acker);
 
 // client
-//write(M, D, O)@async :- write_req(O, D), member(O, M);
+write(Node, Term, Seq, Data, Origin)@async :- process_write(Node, Data, Origin, _), group(G, G), term(G, Term), seq_num(G, Seq);
 
 // replica init
-zookeeper("a", "Z")@1;
-zookeeper("b", "Z")@1;
-zookeeper("c", "Z")@1;
-zookeeper("C", "Z")@1;
-zookeeper("Z", "Z")@1;
+group("a", "G")@1;
+group("b", "G")@1;
+group("c", "G")@1;
+group("C", "G")@1;
+group("G", "G")@1;
 begin("a")@1;
 begin("b")@1;
 begin("c")@1;
+
+nodeid("a", 1)@1;
+nodeid("b", 2)@1;
+nodeid("c", 3)@1;
+nodeid(N, Val)@next :- nodeid(N, Val);
 
 // client init
 client("C")@1;
 
 // bogus stuff
-leader("Z", "a")@1;
-member("Z", "a")@1;
+primary("G", "a")@1;
+member("G", "a")@1;
+term("G", 1)@1;
+term(G, Num)@next :- term(G, Num), group(G, G), notin primary_change(G, _);
+term(G, Num+1)@next :- term(G, Num), group(G, G), primary_change(G, _);
+seq_num("G", 1)@1;
+seq_num(G, Seq)@next :- group(G, G), seq_num(G, Seq), notin write(_, _, Seq, _, _);
+seq_num(G, Seq+1)@next :- group(G, G), seq_num(G, Seq), write(_, _, Seq, _, _);
+
+//Term and sequence number view over acknowledgements
+highest_term_ack("G", 0)@1;
+term_dom(G, Term1, Term2) :- group(G, G), highest_term_ack(G, Term1), ack(_, Term2, _, _, _), Term1 < Term2;
+highest_term_ack(G, Term)@next :- group(G, G), notin term_dom(G, Term, _), highest_term_ack(G, Term);
+highest_term_ack(G, Term2)@next :- group(G, G), term_dom(G, Term1, Term2), highest_term_ack(G, Term1);
+highest_seq_ack("G", 0)@1;
+seq_dom(G, Seq1, Seq2) :- group(G, G), highest_seq_ack(G, Seq1), ack(_, _, Seq2, _, _), Seq1 < Seq2;
+highest_seq_ack(G, Seq)@next :- group(G, G), notin seq_dom(G, Seq, _), highest_term_ack(G, Seq);
+highest_seq_ack(G, Seq2)@next :- group(G, G), term_dom(G, Seq1, Seq2), highest_term_ack(G, Seq1);
 
 // write stream. This is a write to a non-primary. Write to primary can be 
-write("b", "Data1", "C")@1;
+write_req("a", "Data1", "C", 1)@1;
+write_req("a", "Data2", "C", 2)@3;
+//write_req("b", "Data2", "C")@1;
+write_queue(Node, Data, Origin, Id) :- write_req(Node, Data, Origin, Id);
+write_queue(Node, Data, Origin, Id)@next :- write_queue(Node, Data, Origin, Id), notin write_dequeue(Node, Data, Origin, Id);
+min_id( G, min<Id>) :- write_queue(_, _, _, Id), group(G, G);
+process_write(Node, Data, Origin, Id) :- group(G, G), write_queue(Node, Data, Origin, Id), min_id(G, Id);
+write_dequeue(Node, Data, Origin, Id) :- process_write(Node, Data, Origin, Id);
+write_dequeue(Node, Data, Origin, Id)@next :- write_dequeue(Node, Data, Origin, Id);
 
-// assertions
-tried(C, D)@next :- tried(C, D);
-tried(C, D) :- write_req(C, D);
+//Durability invariant
+pre(G, Term, Seq) :- ack(_, Term, Seq, X, _), group(G, G);
+post(G, Term, Seq) :- ack(_, Term, Seq, X, R), chain_ack(_, Term, Seq, X, R), group(G, G);
 
-good(D) :- ack("C", D, _), write(R, D, _), notin crash(R, R, _);
-good(D) :- tried(C, D), notin ack(C, D, _);
+pre(G, Term, Seq) :- chain_ack(_, Term, Seq, X, R), group(G, G);
+post(G, Term, Seq) :- chain_ack(_, Term, Seq, X, R), primary_write(R, Term, Seq, X, _), group(G, G);
+post(G, Term, Seq) :- chain_ack(_, Term, Seq, X, R), write(R, Term, Seq, X, _), group(G, G);
 
-// a pathological case that occurs due to our "preordination" of a as leader
-good(D) :- tried(C, D), leader(C, L), notin member(C, L);
-//good(D) :- member(D, _);
+//Agreement invariant
+chain_ack_max(Node, Term, max<Seq>) :- chain_ack(_, Term, Seq, _, Node);
+ack_int_max(Node, Term, max<Seq>) :- ack_int(_, Term, Seq, _, Node);
+combine_max(Node, Term1, Seq1) :- chain_ack_max(Node, Term1, Seq1), ack_int_max(Node, _, Seq2), Seq1 > Seq2;
+combine_max(Node, Term2, Seq2) :- chain_ack_max(Node, _, Seq1), ack_int_max(Node, Term2, Seq2), Seq1 < Seq2;
+combine_max(Node, Term, Seq) :- chain_ack_max(Node, Term, Seq), notin ack_int_max(Node, _, _);
+combine_max(Node, Term, Seq) :- notin chain_ack_max(Node, _, _), ack_int_max(Node, Term, Seq);
+combine_max_uncrashed(Node, Term, Seq) :- combine_max(Node, Term, Seq), member(G, Node), group(G, G), notin crash(Node, Node, _);
 
-pre(X) :- ack(_, X, _);
-post(X) :- ack(_, X, _), write(R, X, _), notin crash(R,R,_);
+pre(G, Term, Seq) :- combine_max_uncrashed(_, Term, Seq), group(G, G);
+post(G, Term1, Seq1) :- combine_max_uncrashed(Node1, Term1, Seq1), combine_max_uncrashed(Node2, Term2, Seq2), Node1!=Node2, Term1==Term2, Seq1==Seq2, group(G, G);
+post(G, Term, Seq) :- combine_max_uncrashed(Node1, Term, Seq), combine_max_uncrashed(Node2, Term, Seq), Node1==Node2, group(G, G);

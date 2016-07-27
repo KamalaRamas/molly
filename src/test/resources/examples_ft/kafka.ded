@@ -12,7 +12,6 @@ missing_ack(Leader, Data, Other) :- write(Leader, Data, _), member(Leader, Other
 // client
 write(M, D, O)@async :- write_req(O, D), leader(O, M);
 
-
 // replica init
 zookeeper("a", "Z")@1;
 zookeeper("b", "Z")@1;
@@ -30,12 +29,10 @@ client("C")@1;
 leader("Z", "a")@1;
 member("Z", "a")@1;
 
-
 // write stream
 write_req("C", "Data1")@2;
 write_req("C", "Data1")@3;
 write_req("C", "Data1")@4;
-
 
 // assertions
 tried(C, D)@next :- tried(C, D);
