@@ -2,19 +2,18 @@ include "group.ded";
 
 // primary to replicas
 primary_write(Next, Term, Seq, Data, Origin)@async :- write(Origin, Term, Seq, Data, Prev), member(Origin, Next), Origin!=Next, primary(Origin, Origin), notin exclude(Next), notin ack_int(Origin, Term, Seq, Data, Next), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
-primary_write(N, Term, Seq, D, O)@next :- primary_write(N, Term, Seq, D, O);
 ack_int(Origin, Term, Seq, Data, Acker)@async :- primary_write(Acker, Term, Seq, Data, Origin), notin primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
 ack_int(O, Term, Seq, D, A)@next :- ack_int(O, Term, Seq, D, A);
 chain_ack(O, Term, Seq, D, A)@next :- chain_ack(O, Term, Seq, D, A);
-chain_ack(Origin, Term, Seq, Data, Acker)@async :- primary(Acker, Acker), write(Acker, Term, Seq, Data, Origin), Origin != Acker, notin missing_ack(Acker, Term, Seq, Data, _), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
-missing_ack(Primary, Term, Seq, Data, Other) :- primary_write(Primary, Term, Seq, Data, _), member(Primary, Other),  Primary != Other, notin exclude(Other), notin ack_int(Primary, Term, Seq, Data, Other), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+chain_ack(Origin, Term, Seq, Data, Acker)@async :- primary(Acker, Acker), write(Acker, Term, Seq, Data, Origin), Origin != Acker, primary_write(_, _, _, _, Acker), notin missing_ack(Acker, Term, Seq, Data, _), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+missing_ack(Primary, Term, Seq, Data, Other) :- primary_write(_, Term, Seq, Data, Primary), member(Primary, Other),  Primary != Other, notin exclude(Other), notin ack_int(Primary, Term, Seq, Data, Other), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
 
 //Route to primary
 exclude(M)@async :- write(M, _, _, _, Origin), primary(M, Primary), Primary!=M, Primary!=Origin;
 exclude(M)@next :- exclude(M);
 write(Primary, Term, Seq, D, M)@async :- write(M, Term, Seq, D, Origin), primary(M, Primary), Primary!=M, group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
 write(N, Term, Seq, D, O)@next :- write(N, Term, Seq, D, O);
-chain_ack(Origin, Term, Seq, Data, Acker)@async :- write(Acker, Term, Seq, Data, Origin), notin clients("G", Origin), write(Acker2, Term, Seq, Data, Acker), chain_ack(Acker, Term, Seq, Data, Acker2), notin primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
+//chain_ack(Origin, Term, Seq, Data, Acker)@async :- write(Acker, Term, Seq, Data, Origin), notin clients(G, Origin), write(Acker2, Term, Seq, Data, Acker), chain_ack(Acker, Term, Seq, Data, Acker2), notin primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
 ack(Origin, Term, Seq, Data, Acker)@async :- write(Acker, Term, Seq, Data, Origin), group(G,G), clients(G,Origin),  write(Node, Term, Seq, Data, Acker), chain_ack(Acker, Term, Seq, Data, Node), notin primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
 ack(Origin, Term, Seq, Data, Acker)@async :- chain_ack(Origin, Term, Seq, Data, Acker), group(G, G), clients(G, Origin), primary(Acker, Acker), group(G, G), highest_term_ack(G, Curterm), highest_seq_ack(G, Curseq), Term > Curterm, Seq > Curseq;
 ack(Origin, Term, Seq, Data, Acker)@next :- ack(Origin, Term, Seq, Data, Acker);
@@ -61,8 +60,8 @@ highest_seq_ack(G, Seq)@next :- group(G, G), notin seq_dom(G, Seq, _), highest_t
 highest_seq_ack(G, Seq2)@next :- group(G, G), term_dom(G, Seq1, Seq2), highest_term_ack(G, Seq1);
 
 // write stream. This is a write to a non-primary. Write to primary can be 
-write_req("a", "Data1", "C", 1)@1;
-write_req("a", "Data2", "C", 2)@3;
+write_req("a", "Data1", "C", 1)@3;
+//write_req("a", "Data2", "C", 2)@3;
 //write_req("b", "Data2", "C")@1;
 write_queue(Node, Data, Origin, Id) :- write_req(Node, Data, Origin, Id);
 write_queue(Node, Data, Origin, Id)@next :- write_queue(Node, Data, Origin, Id), notin write_dequeue(Node, Data, Origin, Id);
