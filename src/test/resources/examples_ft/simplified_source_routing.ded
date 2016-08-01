@@ -1,41 +1,29 @@
 include "group.ded";
 
 // primary to replicas
-replica_write_queue(Next, Data, Origin, Seq, Nodeid) :- write_request(Origin, Data, Prev, Seq), member(Origin, Next), Origin!=Next, primary(Origin, Origin), notin ack_int(Origin, Data, Next, Seq), notin ack(_, _, _, Seq), nodeid(Next, Nodeid);
-min_seq(G, min<Seq>) :- replica_write_queue(_, _, _, Seq, _), group(G, G);
-min_node( G, min<Nodeid>) :- replica_write_queue(_, _, _, Seq, Nodeid), min_seq(G, Seq), group(G, G);
-replica_write(Node, Data, Origin, Seq)@async :- member(Origin, Origin), replica_write_queue(Node, Data, Origin, Seq, Id), min_node(G, Id), min_seq(G, Seq), primary(Origin, Origin), group(G, G);
-replica_write_dequeue(Node, Data, Origin, Seq, Id) :- replica_write(Node, Data, Origin, Seq), nodeid(Node, Id);
-replica_write_dequeue(Node, Data, Origin, Seq, Nodeid)@next :- replica_write_queue(Node, Data, Origin, Seq, Nodeid), notin primary(Origin, Origin);
-replica_write_dequeue(Node, Data, Origin, Seq, Id)@next :- replica_write_dequeue(Node, Data, Origin, Seq, Id);
-replica_write_queue(Node, Data, Origin, Seq, Nodeid)@next :- replica_write_queue(Node, Data, Origin, Seq, Nodeid), notin replica_write_dequeue(Node, Data, Origin, Seq, Nodeid);
-nodeid("a", 1)@1;
-nodeid("b", 2)@1;
-nodeid("c", 3)@1;
-nodeid(Node, Nodeid)@next :- nodeid(Node, Nodeid);
+replica_write(Other, Data, Primary, Value)@async :- log(Primary, Data, Value), primary(Primary, Primary), member(Primary, Other), Primary != Other, notin ack_int(Primary, Data, Other, Value);
 
-ack_int(Origin, Data, Acker, Seq)@async :- replica_write(Acker, Data, Origin, Seq), notin primary(Acker, Acker);
-ack_int(Origin, Data, Acker, Seq)@next :- ack_int(Origin, Data, Acker, Seq);
-chain_ack(Origin, Data, Acker, Seq)@next :- chain_ack(Origin, Data, Acker, Seq);
-chain_ack(Origin, Data, Acker, Seq)@async :- primary(Acker, Acker), write_request(Acker, Data, Origin, Seq), Origin != Acker, replica_write(_, _, Acker, Seq), notin missing_ack(Acker, Data, _, Seq);
-missing_ack(Primary, Data, Other, Seq) :- replica_write(_, Data, Primary, Seq), member(Primary, Other),  Primary != Other, notin ack_int(Primary, Data, Other, Seq);
-ack(Origin, Data, Acker, Seq)@async :- chain_ack(Origin, Data, Acker, Seq), group(G, G), clients(G, Origin), primary(Acker, Acker);
+ack_int(Origin, Data, Replica, Value)@async :- replica_write(Replica, Data, Origin, Value), primary(Replica, Origin);
+ack_int(Origin, Data, Acker, Value)@next :- ack_int(Origin, Data, Acker, Value);
+missing_ack(Primary, Data, Other, Value) :- write_request(Primary, Data, _, Value), primary(Primary, Primary), member(Primary, Other),  Primary != Other, notin ack_int(Primary, Data, Other, Value);
+chain_ack(Origin, Data, Acker, Value)@async :- primary(Acker, Acker), write_request(Acker, Data, Origin, Value), notin missing_ack(Acker, Data, _, Value);
+chain_ack(Origin, Data, Acker, Value)@next :- chain_ack(Origin, Data, Acker, Value);
+ack(Origin, Data, Acker, Value)@async :- chain_ack(Origin, Data, Acker, Value), new_clients(Origin); 
 
 //Route to primary
-write_request(Primary, Data, M, Seq)@async :- write_request(M, Data, Origin, Seq), primary(M, Primary), Primary != M;
-chain_ack(Origin, Data, Acker, Seq)@async :- write_request(Acker, Data, Origin, Seq), notin clients(G, Origin), write_request(Acker2, Data, Acker, Seq), chain_ack(Acker, Data, Acker2, Seq), notin primary(Acker, Acker);
-ack(Origin, Data, Acker, Seq)@async :- write_request(Acker, Data, Origin, Seq), group(G, G), clients(G, Origin),  write_request(Node, Data, Acker, Seq), chain_ack(Acker, Data, Node, Seq), notin primary(Acker, Acker);
-ack(Origin, Data, Acker, Seq)@next :- ack(Origin, Data, Acker, Seq);
+write_request(Primary, Data, M, Value)@async :- write_request(M, Data, Origin, Value), primary(M, Primary), Primary != M;
+chain_ack(Origin, Data, Acker, Value)@async :- write_request(Acker, Data, Origin, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker);
+ack(Origin, Data, Acker, Value)@next :- ack(Origin, Data, Acker, Value);
 
 //Logging writes
-log(Node, Data, Seq) :- replica_write(Node, Data, _, Seq);
-log(Node, Data, Seq) :- write_request(Node, Data, _, Seq), group(G, G), primary(G, Node);
-log(Node, Data, Seq)@next :- log(Node, Data, Seq);
+log(Node, Data, Value) :- replica_write(Node, Data, _, Value);
+log(Node, Data, Value) :- write_request(Node, Data, _, Value), primary(Node, Node);
+log(Node, Data, Value)@next :- log(Node, Data, Value);
 
 // client
-write_request(Node, Data, Origin, Seq)@next :- write_request(Node, Data, Origin, Seq), notin ack(Origin, Data, Node, Seq);
-write_request(Node, Data, Origin, Seq)@async :- process_write(Node, Data, Origin, Seq);
-//write(Node, Data, Origin, Seq)@async :- process_write(Node, Data, Origin, Seq);
+write_request(Node, Data, Origin, Value)@async :- process_client_write(Origin, Data, Node, Value);
+process_client_write(Origin, Data, Node, Value) :- client_write(Origin, Data, Node, Value), new_clients(Origin), notin chain_ack(Origin, Data, Node, Value);
+client_write(Origin, Data, Node, Value)@next :- client_write(Origin, Data, Node, Value);
 
 // replica init
 group("a", "G")@1;
@@ -43,9 +31,15 @@ group("b", "G")@1;
 group("c", "G")@1;
 group("C", "G")@1;
 group("G", "G")@1;
+group(M, G)@next :- group(M, G);
+
 begin("a")@1;
 begin("b")@1;
 begin("c")@1;
+nodeid("a", 1)@1;
+nodeid("b", 2)@1;
+nodeid("c", 3)@1;
+nodeid(Node, Nodeid)@next :- nodeid(Node, Nodeid);
 
 // client init
 client("C")@1;
@@ -55,21 +49,38 @@ primary("G", "a")@1;
 member("G", "a")@1;
 
 // write stream. This is a write to a non-primary. Write to primary can be 
-write_req("a", "Data1", "C", 1)@1;
-//write_req("a", "Data2", "C", 2)@3;
-//write_req("b", "Data2", "C")@1;
-write_queue(Node, Data, Origin, Id) :- write_req(Node, Data, Origin, Id);
-write_queue(Node, Data, Origin, Id)@next :- write_queue(Node, Data, Origin, Id), notin write_dequeue(Node, Data, Origin, Id);
-min_id( G, min<Id>) :- write_queue(_, _, _, Id), group(G, G);
-process_write(Node, Data, Origin, Id) :- group(G, G), write_queue(Node, Data, Origin, Id), min_id(G, Id);
-write_dequeue(Node, Data, Origin, Id) :- process_write(Node, Data, Origin, Id);
-write_dequeue(Node, Data, Origin, Id)@next :- write_dequeue(Node, Data, Origin, Id);
+write_req("a", "Data1", "C", 1)@2;
+write_req("b", "Data2", "C", 2)@2;
+write_queue(Node, Data, Origin, Value) :- write_req(Node, Data, Origin, Value);
+write_queue(Node, Data, Origin, Value)@next :- write_queue(Node, Data, Origin, Value), notin write_dequeue(Node, Data, Origin, Value);
+min_val( Node, min<Value>) :- write_queue(Node, _, _, Value);
+client_write(Origin, Data, Node, Value) :- write_queue(Node, Data, Origin, Value), min_val(Node, Value);
+write_dequeue(Node, Data, Origin, Value) :- client_write(Origin, Data, Node, Value);
+write_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origin, Value);
 
 //Durability invariant
 
 //Agreement invariant
 //log_max(Node, max<Seq>) :- log(Node, _, _, Seq);
 
-pre(Node, X) :- log(Node, X, _), group(G, G), member(G, Node);
-post(Node, X) :- log(Node, X, _), group(G, G), member(G, Node), notin match_exists(Node, X);
-match_exists(Node, X) :- log(Node, X, _), group(G, G), member(G, Node), member(Node, Other), notin log(Other, X, _);
+pre(Node, X) :- log(Node, X, _), member("G", Node), notin crash(Node, Node, _);
+post(Node, X) :- log(Node, X, _), member("G", Node), notin crash(Node, Node, _), notin no_match_exists(Node, X);
+no_match_exists(Node, X) :- log(Node, X, _), member("G", Node), member(Node, Other), notin log(Other, X, _);
+
+//May need later with staggered writes
+//write_request_augmented(Primary, Data, Other, Value, "G") :- write_request(Primary, Data, Other, Value);
+//replica_write_augmented(Replica, Data, Other, Value, "G") :- replica_write(Replica, Data, Other, Value);
+//write_request_rearranged(G, Primary, Data, Other, Value) :- write_request_augmented(Primary, Data, Other, Value, G);
+//replica_write_rearranged(G, Primary, Data, Other, Value) :- replica_write_augmented(Primary, Data, Other, Value, G);
+//no_replica_write(Primary, Data, Other, Value) :- write_request_rearranged("G", Primry, Data, _, Value), notin replica_write_rearranged("G", Other, Data, Primary, Value), primary(Primary, Primary), member(Primary, Other), Primary != Other;
+//missing_ack(Primary, Data, Other, Value) :- no_replica_write(Primary, Data, Other, Value), notin ack_int(Primary, Data, Other, Value), primary(Primary, Primary);
+
+//Staggering replica writes - Incorrect so far, Needs to be fixed
+//replica_write_queue(Next, Data, Origin, Value, Nodeid) :- write_request(Origin, Data, Prev, Value), member(Origin, Next), Origin!=Next, primary(Origin, Origin), notin ack_int(Origin, Data, Next, Value), notin ack(_, _, _, Value), nodeid(Next, Nodeid);
+//min_seq(G, min<Value>) :- replica_write_queue(_, _, _, Value, _), group(G, G);
+//min_node( G, min<Nodeid>) :- replica_write_queue(_, _, _, Value, Nodeid), min_seq(G, Value), group(G, G);
+//replica_write_dequeue(Node, Data, Origin, Value, Id) :- replica_write(Node, Data, Origin, Value), nodeid(Node, Id);
+//replica_write_dequeue(Node, Data, Origin, Value, Nodeid)@next :- replica_write_queue(Node, Data, Origin, Value, Nodeid), notin primary(Origin, Origin);
+//replica_write_dequeue(Node, Data, Origin, Value, Id)@next :- replica_write_dequeue(Node, Data, Origin, Value, Id);
+//replica_write_queue(Node, Data, Origin, Value, Nodeid)@next :- replica_write_queue(Node, Data, Origin, Value, Nodeid), notin replica_write_dequeue(Node, Data, Origin, Value, Nodeid);
+
