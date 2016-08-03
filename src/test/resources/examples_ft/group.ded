@@ -1,23 +1,21 @@
-// "establish Group membership" as a replica
-member(G, M)@async :- begin(M), group(M, G);
+// "establish in-sync replica set membership" as a replica
+member(G, M) :- begin(M), group(M, G);
 
-member(G,M) :- cchange(G, M, "A"), group(G, G);
-member(G, M)@next :- member(G, M), notin cchange(G, M, "D"), group(G, G);
-member(C, M)@next :- member(G, M), clients(G, C), group(G, G);
-member(A, M)@next :- member(G, A), member(G, M), group(G, G);
+// Propagate in-sync replica information at each time step
+member(G, M)@async :- group(M, G), notin cchange(M, "D", G), group(G, G);
+member(C, M) :- member(G, M), client(G, C);
+member(A, M) :- member(G, A), member(G, M), group(G, G), A != "G", M != "G", notin client(G, A), notin client(G, M);
 
-primary(G, L)@next :- group(G, G), primary(G, L), notin primary_change(G, _);
-primary(G, Node)@next :- group(G, G), primary_change(G, Node);
-primary_change(G, Node) :- group(G, G), promote(G, Node), primary(G, Primary), Node != Primary;
-cchange(G, Primary, "D") :- group(G, G), promote(G, Node), primary(G, Primary), Node != Primary;
-primary(M, L)@next :- primary(G, L), member(G, M), group(G, G);
-primary(M, L)@next :- primary(G, L), clients(G, M), group(G, G);
+// Maintain knowledge of primary across time
+primary(G, L)@next :- group(G, G), primary(G, L), member(G, L), notin promote(G, _);
+primary(G, Node)@next :- group(G, G), promote(G, Node);
+primary(M, L)@next :- primary(G, L), member(G, M), member(G, L), group(G, G);
+primary(C, L)@next :- primary(G, L), client(G, C), member(G, L), group(G, G);
 
-clients(G, C)@async :- client(C), group(C, G);
-clients(G, C)@next :- clients(G, C);
-new_clients(C) :- clients(G, C);
+client(G, C)@next :- clients(C), group(C, G);
 
-//cchange("G", "c", "D")@1;
-//cchange("G", "c", "A")@6;
-cchange("G", M, "D")@next :- cchange("G", M, "D"), notin cchange("G", M, "A");
-//promote("G", "b")@3;
+// Primry promotion, with the node with the max nodieid being promoted. This is the reverse order to the order in which staggered replica writes 
+// are propagated.
+promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), primary(G, Primary), Primary !=Node;
+promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), notin primary(G, _);
+

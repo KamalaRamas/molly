@@ -1,0 +1,39 @@
+// replica init
+// The "group" relation specifies all prcesses that can ever be part of the group
+group("a", "G")@1;
+group("b", "G")@1;
+group("c", "G")@1;
+group("C", "G")@1;
+group("G", "G")@1;
+group(M, G)@next :- group(M, G);
+group(M, "G") :- cchange(M, "A", "G"), notin group(M, "G");
+
+begin("a")@1;
+begin("b")@1;
+begin("c")@1;
+
+// Nodes are assigned nodeids at the beginning of each run
+nodeid("G", "a", 1)@1;
+nodeid("G", "b", 2)@1;
+nodeid("G", "c", 3)@1;
+nodeid("G", Node, Nodeid)@next :- nodeid("G", Node, Nodeid);
+
+// client init
+clients("C")@1;
+clients(C)@next :- clients(C);
+
+// "primary" designates the primary in the cluster.
+// "member" represents the in-sync replica set at any instant of time
+primary("G", "c")@1;
+member("G", "a")@1;
+
+// write stream.  
+write_req("c", "Data1", "C", 1)@2;
+
+//Utilities
+//
+min_val( Node, min<Value>) :- write_queue(Node, _, _, Value);
+min_nodeid(G, min<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Nodeid);
+max_nodeid(G, max<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Nodeid);
+max_node_val(Node, max<Value>) :- min_nodeid("G", Nodeid), nodeid("G", Node, Nodeid), log(Node, _, _, Value);
+
