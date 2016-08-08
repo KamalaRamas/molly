@@ -43,7 +43,7 @@ chain_ack(Origin, Data, Acker, Value)@async :- primary(Acker, Acker), log(Acker,
 chain_ack_sent(Acker, Data, Origin, Value)@next :- primary(Acker, Acker), log(Acker, Data, Origin, Value), notin missing_ack(Acker, Data, _, Value);
 
 // Acknowledgements persist across time. If a chain_ack is received at a client, the write is acknowledged.
-ack(Origin, Data, Acker, Value)@async :- chain_ack(Origin, Data, Acker, Value), clients(Origin); 
+ack(Origin, Data, Acker, Value) :- chain_ack(Origin, Data, Acker, Value), clients(Origin); 
 chain_ack(Origin, Data, Acker, Value)@next :- chain_ack(Origin, Data, Acker, Value);
 ack_int(Origin, Data, Acker, Value)@next :- ack_int(Origin, Data, Acker, Value);
 ack(Origin, Data, Acker, Value)@next :- ack(Origin, Data, Acker, Value);
@@ -63,15 +63,14 @@ log(Node, Data, Origin, Value) :- replica_write(Node, Data, Origin, Value, _);
 log(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value);
 log(Node, Data, Origin, Value)@next :- log(Node, Data, Origin, Value);
 
-//Client. This step ensure that a message goes out from client to one of the replicas
-write_request(Node, Data, Origin, Value)@async :- client_write(Origin, Data, Node, Value), member(Origin, Node);
-
 // WRITE QUEUE TO PROCESS CONCURRENT WRITES
 //
-write_queue(Node, Data, Origin, Value) :- write_req(Node, Data, Origin, Value);
+// This ensures that a message goes out from client to one of the replicas
+write_req_msg(Node, Data, Client, Value)@async :- write_req(Client, Data, Node, Value), clients(Client);
+write_queue(Node, Data, Client, Value) :- write_req_msg(Node, Data, Client, Value);
 write_queue(Node, Data, Origin, Value)@next :- write_queue(Node, Data, Origin, Value), notin write_dequeue(Node, Data, Origin, Value);
-client_write(Origin, Data, Node, Value) :- write_queue(Node, Data, Origin, Value), min_val(Node, Value);
-write_dequeue(Node, Data, Origin, Value) :- client_write(Origin, Data, Node, Value);
+write_request(Node, Data, Origin, Value) :- write_queue(Node, Data, Origin, Value), min_val(Node, Value);
+write_dequeue(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value);
 write_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origin, Value);
 
 //DURABILITY INVARIANT
@@ -86,6 +85,6 @@ post("Durability", X, Value2) :- ack(C, X, _, Value1), clients(C), max_node_val(
 //AGREEMENT INVAIRANT
 log_max(Node, X, max<Value>) :- log(Node, X, _, Value);
 
-pre("Consistency", X, Value) :- log_max(Node, X, Value), member("G", Node), Node != "G", notin client("G", Node);
-post("Consistency", X, Value) :- log_max(Node, X, Value), member("G", Node), notin no_match_exists(Node, _, X, Value);
-no_match_exists(Node, Other, X, Value) :- log_max(Node, X, Value), member("G", Node), member("G", Other), Node != Other, notin log_max(Other, X, Value), Node != "G", Other != "G", notin client("G", Node), notin client("G", Other);
+pre("Consistency", X, Value) :- log_max(Node, X, Value), member(Node, Node), Node != "G", notin clients(Node);
+post("Consistency", X, Value) :- log_max(Node, X, Value), member(Node, Node), notin no_match_exists(Node, _, X, Value);
+no_match_exists(Node, Other, X, Value) :- log_max(Node, X, Value), member(Node, Node), member(Node, Other), Node != Other, notin log_max(Other, X, Value), Node != "G", Other != "G", notin clients(Node), notin clients(Other);
