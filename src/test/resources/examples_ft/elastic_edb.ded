@@ -17,7 +17,16 @@ begin("G")@1;
 nodeid("G", "a", 1)@1;
 nodeid("G", "b", 2)@1;
 nodeid("G", "c", 3)@1;
-nodeid("G", Node, Nodeid)@next :- nodeid("G", Node, Nodeid);
+nodeid("a", "a", 1)@1;
+nodeid("a", "b", 2)@1;
+nodeid("a", "c", 3)@1;
+nodeid("b", "a", 1)@1;
+nodeid("b", "b", 2)@1;
+nodeid("b", "c", 3)@1;
+nodeid("c", "a", 1)@1;
+nodeid("c", "b", 2)@1;
+nodeid("c", "c", 3)@1;
+nodeid(Node1, Node2, Nodeid)@next :- nodeid(Node1, Node2, Nodeid);
 
 // client init
 clients("C")@1;

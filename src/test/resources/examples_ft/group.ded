@@ -2,7 +2,7 @@
 member(G, M)@async :- begin(M), group(M, G);
 
 // Propagate the in-sync replica info to other replicas
-member(M, N)@async :- group(G, G), member(G, M), member(G, N), M != G, notin propagate(G, M, N);
+member(M, N)@async :- group(G, G), member(G, M), member(G, N), M != G, N != G, notin propagate(G, M, N);
 propagate(G, M, N)@next :- group(G, G), member(G, M), member(G, N), M != G;
 
 // Maintain in-sync replica information across time
