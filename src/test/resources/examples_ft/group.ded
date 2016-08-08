@@ -1,21 +1,32 @@
 // "establish in-sync replica set membership" as a replica
-member(G, M) :- begin(M), group(M, G);
+member(G, M)@async :- begin(M), group(M, G);
 
-// Propagate in-sync replica information at each time step
-member(G, M)@async :- group(M, G), notin cchange(M, "D", G), group(G, G);
-member(C, M) :- member(G, M), client(G, C);
-member(A, M) :- member(G, A), member(G, M), group(G, G), A != "G", M != "G", notin client(G, A), notin client(G, M);
+// Propagate the in-sync replica info to other replicas
+member(M, N)@async :- group(G, G), member(G, M), member(G, N), M != G, notin propagate(G, M, N);
+propagate(G, M, N)@next :- group(G, G), member(G, M), member(G, N), M != G;
+
+// Maintain in-sync replica information across time
+member(M, N)@next :- member(M, N), notin crash(M, N, _);
+member(M, N)@next :- member(M, N), crash(M, N, Time), now(M, Now), Now < Time;
+
+// Propagate the in-sync replica info to client
+member(C, M)@async :- group(G, G), member(G, M), client(G, C), notin propagate(G, C, M);
+propagate(G, C, M)@next :- group(G, G), member(G, M), client(G, C);
 
 // Maintain knowledge of primary across time
-primary(G, L)@next :- group(G, G), primary(G, L), member(G, L), notin promote(G, _);
-primary(G, Node)@next :- group(G, G), promote(G, Node);
-primary(M, L)@next :- primary(G, L), member(G, M), member(G, L), group(G, G);
-primary(C, L)@next :- primary(G, L), client(G, C), member(G, L), group(G, G);
+update_primary(M, Node)@async :- group(G, G), member(G, M), promote(G, Node);
+update_primary(C, Node)@async :- group(G, G), client(G, C), promote(G, Node);
+primary(M, L)@next :- primary(M, L), notin update_primary(M, _), notin crash(M, M, _);
+primary(M, L)@next :- primary(M, L), notin update_primary(M, _), crash(M, M, Time), now(M, Now), Now < Time;
+primary(M, Node)@next :- update_primary(M, Node);
 
-client(G, C)@next :- clients(C), group(C, G);
+// Clients known to the group "G"
+client(G, C)@async :- clients(C), group(C, G), notin client_reg(C, G);
+client_reg(C, G)@next :- clients(C), group(C, G);
+client(G, C)@next :- client(G, C), notin crash(G, C, _);
+client(G, C)@next :- client(G, C), crash(G, C, Time), now(G, Now), Now < Time;
 
 // Primry promotion, with the node with the max nodieid being promoted. This is the reverse order to the order in which staggered replica writes 
 // are propagated.
 promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), primary(G, Primary), Primary !=Node;
-promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), notin primary(G, _);
-
+promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), notin primary(G, Node);
