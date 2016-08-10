@@ -1,0 +1,6 @@
+sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker \
+    src/test/resources/examples_ft/elastic_search_simplified.ded \
+    --EOT 8 \
+    --EFF 0 \
+    --nodes C,G,a,b,c \
+    --crashes 1"

@@ -55,8 +55,10 @@ now(Node, Time+1)@next :- now(Node, Time);
 
 //Utilities
 //
+uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, notin crash(G, Node, _);
+uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, crash(G, Node, Time), now(G, Now), Now < Time;
 min_val( Node, min<Value>) :- write_queue(Node, _, _, Value);
 min_nodeid(G, min<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Nodeid);
-max_nodeid(G, max<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Nodeid);
+max_nodeid(G, max<Nodeid>) :- group(G, G), uncrashed_nodes(G, Node), nodeid(G, Node, Nodeid);
 max_node_int(Node) :- min_nodeid("G", Nodeid), nodeid("G", Node, Nodeid);
 max_node_val(Node, max<Value>) :- max_node_int(Node), log(Node, _, _, Value);
