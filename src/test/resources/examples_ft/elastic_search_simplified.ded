@@ -74,6 +74,7 @@ write_queue(Node, Data, Client, Value) :- write_req_msg(Node, Data, Client, Valu
 write_queue(Node, Data, Origin, Value)@next :- write_queue(Node, Data, Origin, Value), notin write_dequeue(Node, Data, Origin, Value);
 write_request(Node, Data, Origin, Value) :- write_queue(Node, Data, Origin, Value), min_val(Node, Value);
 write_dequeue(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value);
+write_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origin, Value);
 
 //Utilities
 //
@@ -85,8 +86,7 @@ max_nodeid(G, max<Nodeid>) :- group(G, G), uncrashed_nodes(G, Node), nodeid(G, N
 
 // Find max Value on the node with minimum nodeid
 max_node_int(Node) :- min_nodeid("G", Nodeid), nodeid("G", Node, Nodeid);
-max_node_val(Node, max<Value>) :- max_node_int(Node), log(Node, _, _, Value);rite_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origin, Value);
+max_node_val(Node, max<Value>) :- max_node_int(Node), log(Node, _, _, Value);
 
 // Find the maximum log value on a particular node
 log_max(Node, X, max<Value>) :- log(Node, X, _, Value);
-
