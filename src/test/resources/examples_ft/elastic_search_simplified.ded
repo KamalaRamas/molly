@@ -1,6 +1,12 @@
 include "group.ded";
 include "elastic_edb.ded";
 
+// General comments: 
+// Queueing logic : Queuing logic has been employed in a couple of places to stagger writes and handle concurrent
+// client writes
+// _sent tables are typically maintaine dso a message is not sent repeatedly even if the relation that derive it 
+// persist across time. They ensure that there is no retry at any stage.
+
 // PRIMARY TO REPLICAS.
 //
 //When a write_request appears on the primary, for every other replica alive in the system, add to the "replica_write_queue".
@@ -68,20 +74,19 @@ write_queue(Node, Data, Client, Value) :- write_req_msg(Node, Data, Client, Valu
 write_queue(Node, Data, Origin, Value)@next :- write_queue(Node, Data, Origin, Value), notin write_dequeue(Node, Data, Origin, Value);
 write_request(Node, Data, Origin, Value) :- write_queue(Node, Data, Origin, Value), min_val(Node, Value);
 write_dequeue(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value);
-write_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origin, Value);
 
-//DURABILITY INVARIANT
-//pre("Durability", X, Value) :- ack(C, X, _, Value), clients(C), primary("G", Primary), member("G", Primary);
-//post("Durability", Primary, X, Value1) :- ack(C, X, _, Value1), clients(C), primary("G", Primary), member("G", Primary), log(Primary, X, _, Value2), Value2 > Value1; 
-//post("Durability", Primary, X, Value1) :- ack(C, X, _, Value1), clients(C), primary("G", Primary), log(Primary, X, _, Value2), member("G", Primary), Value2 == Value1; 
+//Utilities
+//
+uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, notin crash(G, Node, _);
+uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, crash(G, Node, Time), now(G, Now), Now < Time;
+min_val( Node, min<Value>) :- write_queue(Node, _, _, Value);
+min_nodeid(G, min<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Nodeid);
+max_nodeid(G, max<Nodeid>) :- group(G, G), uncrashed_nodes(G, Node), nodeid(G, Node, Nodeid);
 
-pre("Durability", X, Value) :- ack(C, X, _, Value), clients(C), notin crash(G, G, _);
-post("Durability", X, Value1) :- ack(C, X, _, Value1), clients(C), max_node_val(Node, Value2), Value2 > Value1;
-post("Durability", X, Value2) :- ack(C, X, _, Value1), clients(C), max_node_val(Node, Value2), Value2 == Value1;
+// Find max Value on the node with minimum nodeid
+max_node_int(Node) :- min_nodeid("G", Nodeid), nodeid("G", Node, Nodeid);
+max_node_val(Node, max<Value>) :- max_node_int(Node), log(Node, _, _, Value);rite_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origin, Value);
 
-//AGREEMENT INVAIRANT
+// Find the maximum log value on a particular node
 log_max(Node, X, max<Value>) :- log(Node, X, _, Value);
 
-pre("Consistency", X, Value) :- log_max(Node, X, Value), member(G, Node), Node != G, notin clients(Node), group(G, G);
-post("Consistency", X, Value) :- log_max(Node, X, Value), group(G, G), member(G, Node), Node != G, notin clients(Node), notin no_match_exists(Node, X, Value);
-no_match_exists(Node, X, Value) :- log_max(Node, X, Value), member(Node, Node), member(Node, Other), Node != Other, notin log_max(Other, X, Value), Node != "G", Other != "G", notin clients(Node), notin clients(Other);

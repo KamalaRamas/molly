@@ -53,12 +53,14 @@ now("c", 1)@1;
 now("C", 1)@1;
 now(Node, Time+1)@next :- now(Node, Time);
 
-//Utilities
-//
-uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, notin crash(G, Node, _);
-uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, crash(G, Node, Time), now(G, Now), Now < Time;
-min_val( Node, min<Value>) :- write_queue(Node, _, _, Value);
-min_nodeid(G, min<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Nodeid);
-max_nodeid(G, max<Nodeid>) :- group(G, G), uncrashed_nodes(G, Node), nodeid(G, Node, Nodeid);
-max_node_int(Node) :- min_nodeid("G", Nodeid), nodeid("G", Node, Nodeid);
-max_node_val(Node, max<Value>) :- max_node_int(Node), log(Node, _, _, Value);
+//Initialization logic - some @async are dropped here
+// "establish in-sync replica set membership" as a replica
+member(G, M) :- begin(M), group(M, G);
+
+// Propagate the in-sync replica info to other replicas
+member(M, N) :- group(G, G), member(G, M), member(G, N), M != G, N != G, notin propagate(G, M, N);
+propagate(G, M, N)@next :- group(G, G), member(G, M), member(G, N), M != G;
+
+// Propagate the in-sync replica info to client
+member(C, M) :- group(G, G), member(G, M), client(G, C), notin propagate(G, C, M);
+propagate(G, C, M)@next :- group(G, G), member(G, M), client(G, C);
