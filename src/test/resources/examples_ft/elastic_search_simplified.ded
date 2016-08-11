@@ -63,7 +63,7 @@ chain_ack_sent(Acker, Data, Origin, Value)@next :- log(Acker, Data, Origin, Valu
 // A write is logged at the primary at the same time replica writes are queued and at the replicas when the replica_write is received.
 //
 log(Node, Data, Origin, Value) :- replica_write(Node, Data, Origin, Value, _);
-log(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value);
+log(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value), primary(Node, Node);
 log(Node, Data, Origin, Value)@next :- log(Node, Data, Origin, Value);
 
 // WRITE QUEUE TO PROCESS CONCURRENT WRITES
