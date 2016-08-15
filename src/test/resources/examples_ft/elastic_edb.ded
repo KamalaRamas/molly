@@ -43,8 +43,8 @@ primary("C", "c")@1;
 member("G", "c")@1;
 
 // write stream.  
-write_req("C", "Data1", "b", 1)@4;
-write_req("C", "Data2", "c", 2)@3;
+write_req("C", "Data1", "b", 1)@1;
+write_req("C", "Data2", "c", 2)@1;
 
 //Maintain "now" relation
 now("G", 1)@1;

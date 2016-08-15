@@ -41,9 +41,8 @@ write_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origi
 // have been sent out(chain_ack_sent) in order to send out each acknowledgement exactly once. 
 // 
 write_request(Primary, Data, M, Value)@async :- write_request(M, Data, Origin, Value), primary(M, Primary), Primary != M;
-
-//Append sequence number to write request
-write_request_seq(Primary, Data, Origin, Seq, Value) :- write_request(Primary, Data, Origin, Value), primary(Primary, Primary), seq(Primary, Seq);
+send_ack_to(M, Origin, Value)@next :- write_request(M, Data, Origin, Value), primary(M, Primary), Primary != M;
+send_ack_to(M, Origin, Value)@next :- send_ack_to(M, Origin, Value);
 
 //
 // PRIMARY TO REPLICAS.
@@ -95,8 +94,8 @@ chain_ack(Origin, Data, Acker, Value)@async :- primary(Acker, Acker), log(Acker,
 chain_ack_sent(Acker, Data, Origin, Value)@next :- primary(Acker, Acker), log(Acker, Data, Origin, Value), notin missing_ack(Acker, Data, _, Value);
 
 // Acknowledgement retrace the forwarding path of the write request
-chain_ack(Origin, Data, Acker, Value)@async :- log(Acker, Data, Origin, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker), notin chain_ack_sent(Acker, Data, Origin, Value);
-chain_ack_sent(Acker, Data, Origin, Value)@next :- log(Acker, Data, Origin, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker);
+chain_ack(Origin, Data, Acker, Value)@async :- log(Acker, Data, _, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker), send_ack_to(Acker, Origin, Value), notin chain_ack_sent(Acker, Data, Origin, Value);
+chain_ack_sent(Acker, Data, Origin, Value)@next :- log(Acker, Data, _, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker), send_ack_to(Ackr, Origin, Value);
 
 // Acknowledgements persist across time. If a chain_ack is received at a client, the write is acknowledged.
 ack(Origin, Data, Acker, Value) :- chain_ack(Origin, Data, Acker, Value), clients(Origin); 
