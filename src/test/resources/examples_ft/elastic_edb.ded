@@ -43,8 +43,8 @@ primary("C", "c")@1;
 member("G", "c")@1;
 
 // write stream.  
-write_req("C", "Data1", "c", 1)@3;
-write_req("C", "Data2", "b", 2)@3;
+write_req("C", "Data1", "b", 1)@4;
+write_req("C", "Data2", "c", 2)@3;
 
 //Maintain "now" relation
 now("G", 1)@1;
@@ -65,3 +65,8 @@ propagate(G, M, N)@next :- group(G, G), member(G, M), member(G, N), M != G;
 // Propagate the in-sync replica info to client
 member(C, M) :- group(G, G), member(G, M), client(G, C), notin propagate(G, C, M);
 propagate(G, C, M)@next :- group(G, G), member(G, M), client(G, C);
+
+replica_write_queue("G", "Dummy", "G", 0, 0)@1;
+
+seq("G", 0)@1;
+seq("c", 1)@1;

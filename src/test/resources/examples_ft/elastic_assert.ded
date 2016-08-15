@@ -1,10 +1,9 @@
 include "elastic_search_simplified.ded";
 
 //DURABILITY INVARIANT
-//pre("Durability", X, Value) :- group(G, G), notin crash(G, G, _), ack(C, X, _, Value), clients(C);
-//violate(Node) :- group(G, G), notin crash(G, G, _), ack(C, X, _, Value1), clients(C), member(G, Node), Node != G, max_node_val(Node, Value2), Value2 < Value1;
-//post("Durability", X, Value2) :- group(G, G), notin crash(G, G, _), ack(C, X, _, Value1), clients(C), member(G, Node), Node != G, max_node_val(Node, Value2), Value2 == Value1;
-//post("Durability", X, Value1) :- group(G, G), notin crash(G, G, _), ack(C, X, _, Value1), clients(C), member(G, Node), Node != G, notin violate(Node);
+pre("Durability", X, Value) :- group(G, G), notin crash(G, G, _), ack(C, X, _, Value), clients(C);
+post("Durability", X, Value2) :- group(G, G), notin crash(G, G, _), ack(C, X, _, Value1), clients(C), member(G, Node), Node != G, nodeid(G, Node, Nodeid), min_nodeid(G, Nodeid), max_node_val(Node, Value2), Value2 == Value1;
+post("Durability", X, Value1) :- group(G, G), notin crash(G, G, _), ack(C, X, _, Value1), clients(C), member(G, Node), Node != G, nodeid(G, Node, Nodeid), min_nodeid(G, Nodeid), max_node_val(Node, Value2), Value2 > Value1;
 
 //AGREEMENT INVAIRANT
 pre("Consistency", X, Value) :- log_max(Node, X, Value), member(G, Node), Node != G, notin clients(Node), group(G, G);

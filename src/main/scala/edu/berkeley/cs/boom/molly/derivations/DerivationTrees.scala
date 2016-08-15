@@ -180,7 +180,7 @@ case class RuleNode(
   subgoals: Set[GoalNode]
 ) extends HashcodeCaching with DerivationTreeNode {
 
-  require (!subgoals.isEmpty, "RuleNode must have subgoals")
+  require (!subgoals.isEmpty, "RuleNode must have subgoals" + subgoals + rule)
   val id = DerivationTrees.nextRuleNodeId.getAndIncrement
   lazy val enumerateDistinctDerivationsOfSubGoals: List[RuleNode] = {
     val choices: List[List[GoalNode]] = subgoals.map(_.enumerateDistinctDerivations.toList).toList
