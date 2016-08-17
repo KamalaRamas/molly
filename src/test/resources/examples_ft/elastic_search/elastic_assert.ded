@@ -1,0 +1,44 @@
+include "elastic_search_with_seq.ded";
+
+//DURABILITY INVARIANT
+pre("Durability", X, Seq) :-	
+				group(G, G),
+				notin crash(G, G, _),
+				ack(C, X, _, _, Seq),
+				clients(C);
+
+post("Durability", X, Seq) :-	
+				group(G, G),
+				notin crash(G, G, _),
+				ack(C, X, _, _, Seq),
+				clients(C),
+				member(G, Node),
+				Node != G,
+				history(Node, X, _, Seq);
+
+//AGREEMENT INVAIRANT
+pre("Consistency", X, Seq) :- 	
+				history_max(Node, X, Seq),
+				member(G, Node),
+				Node != G, 
+				notin clients(Node),
+				group(G, G);
+
+post("Consistency", X, Seq) :- 	
+				history_max(Node, X, Seq),
+				group(G, G),
+				member(G, Node),
+				Node != G,
+				notin clients(Node),
+				notin no_match_exists(Node, X, Seq);
+
+no_match_exists(Node, X, Seq) :-
+				history_max(Node, X, Seq),
+				member(Node, Node),
+				member(Node, Other),
+				Node != Other,
+				notin history_max(Other, X, Seq),
+				Node != "G",
+				Other != "G",
+				notin clients(Node),
+				notin clients(Other);
