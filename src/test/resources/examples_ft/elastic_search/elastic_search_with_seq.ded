@@ -231,34 +231,6 @@ seq(Primary, Seq)@next :-
 				seq(Primary, Seq),
 				notin write_request_seq(Primary, _, _, _, _);
 
-// Update sequence number on global process, G
-max_ack(Origin, max<Seq>) :-	
-				clients(Origin),
-				group(Origin, G),
-				chain_ack(Origin, _, _, _, Seq);
-
-max_ack(Origin, 0) :- 	
-			clients(Origin),
-			group(Origin, G),
-			notin chain_ack(Origin, _, _, _, Seq);
-
-max_ack(G, Seq)@async :-	
-			clients(Client),
-			group(Client, G),
-			max_ack(Client, Seq);
-
-seq(G, Seq)@next :- 	
-			group(G, G),
-			max_ack(G, Seq);
-
-seq(Node, Seq+1)@async :-
-			promote(G, Node),
-			seq(G, Seq);
-
-//seq(Node, 0)@next :- member(Node, Node), notin history(Node, _, _, _);
-max_history(Node, max<Seq>) :- member(Node, Node), history(Node, _, _, Seq);
-//seq(Node, Seq2) :- member(Node, Node), seq(Node, Seq1), max_history(Node, Seq2), Seq2 > Seq1;
-
 // Log writes to contain the sequence number too - History relation
 history(Node, Data, Origin, Seq)@next :- int(Node, Data, Origin, Seq);
 

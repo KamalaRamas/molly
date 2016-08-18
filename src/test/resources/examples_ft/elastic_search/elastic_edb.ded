@@ -36,20 +36,26 @@ clients(C)@next :- clients(C);
 
 // "primary" designates the primary in the cluster.
 // "member" represents the in-sync replica set at any instant of time
-primary("G", "a")@1;
-primary("a", "a")@1;
-primary("b", "a")@1;
-primary("c", "a")@1;
-primary("C", "a")@1;
+primary("G", "c")@1;
+primary("a", "c")@1;
+primary("b", "c")@1;
+primary("c", "c")@1;
+primary("C", "c")@1;
 
-member("G", "a")@1;
+member("G", "c")@1;
 
 // write stream.  
-write_req("C", "Data1", "a", 1)@1;
-write_req("C", "Data2", "b", 2)@5;
+write_req("C", "Data1", "c", 1)@3;
+write_req("C", "Data2", "b", 2)@1;
+//crash(Node, "c", 4) :- member(Node, Node);
+//crash(Node, "c", 4) :- clients(Node);
 
-seq("G", 0)@1;
 seq("a", 1)@1;
+seq("b", 1)@1;
+seq("c", 1)@1;
+seq(Node, Seq)@next :- member(Node, Node), notin primary(Node, Node), seq(Node, Seq), notin history(Node, _, _, _);
+seq(Node, Seq+1)@next :- member(Node, Node), notin primary(Node, Node), history(Node, _, _, _), max_history(Node, Seq);
+max_history(Node, max<Seq>) :- member(Node, Node), history(Node, _, _, Seq);
 
 //Maintain "now" relation
 now("G", 1)@1;
@@ -91,5 +97,3 @@ propagate(G, C, M)@next :-
 			group(G, G),
 			member(G, M),
 			client(G, C);
-
-replica_write_queue("G", "Dummy", "G", 0, 0, 0)@1;

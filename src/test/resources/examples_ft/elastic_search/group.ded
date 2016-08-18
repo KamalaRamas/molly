@@ -129,13 +129,13 @@ client_known(M, C)@next :-
 // writes are propagated.
 promote(G, Node) :-	
 			group(G, G),
-			min_nodeid(G, Nodeid),
+			max_nodeid(G, Nodeid),
 			nodeid(G, Node, Nodeid),
 			primary(G, Primary),
 			Primary !=Node;
 
 promote(G, Node) :- 	
 			group(G, G),
-			min_nodeid(G, Nodeid),
+			max_nodeid(G, Nodeid),
 			nodeid(G, Node, Nodeid),
 			notin primary(G, Node);

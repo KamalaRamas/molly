@@ -2,33 +2,29 @@ include "elastic_search_with_seq.ded";
 
 //DURABILITY INVARIANT
 pre("Durability", X, Seq) :-	
-				group(G, G),
-				notin crash(G, G, _),
-				ack(C, X, _, _, Seq),
-				clients(C);
+				ack(C, X, _, _, Seq);			// If client is acknowledged
 
 post("Durability", X, Seq) :-	
-				group(G, G),
-				notin crash(G, G, _),
-				ack(C, X, _, _, Seq),
-				clients(C),
-				member(G, Node),
-				Node != G,
-				history(Node, X, _, Seq);
+				ack(C, X, _, _, Seq),	        // If cliient is acknowledged with payload X and sew number Seq,
+				notin no_history(X, Seq);       // then it is not the case that it is abset from any ISR
+
+no_history(X, Seq) :-	
+				ack(C, X, _, _, Seq),               // Client is acknowledged
+				member(Node, Node),
+				Node != "G",
+				notin history(Node, X, _, Seq);     // Corresponding record not present in ISR history
 
 //AGREEMENT INVAIRANT
 pre("Consistency", X, Seq) :- 	
 				history_max(Node, X, Seq),
-				member(G, Node),
-				Node != G, 
-				notin clients(Node),
-				group(G, G);
+				member(Node, Node),
+				Node != "G", 
+				notin clients(Node);
 
 post("Consistency", X, Seq) :- 	
 				history_max(Node, X, Seq),
-				group(G, G),
-				member(G, Node),
-				Node != G,
+				member(Node, Node),
+				Node != "G",
 				notin clients(Node),
 				notin no_match_exists(Node, X, Seq);
 
