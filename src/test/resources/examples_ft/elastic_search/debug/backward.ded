@@ -1,0 +1,83 @@
+include "group.ded";
+include "elastic_edb.ded";
+
+// General comments: 
+// Queueing logic : Queuing logic has been employed in a couple of places to stagger writes and handle concurrent
+// client writes
+// _sent tables are typically maintaine dso a message is not sent repeatedly even if the relation that derive it 
+// persist across time. They ensure that there is no retry at any stage.
+// "G" is a global process that has a view of system state that other process do not.
+// group is a global relation which maintains all the processes the could have ever been part of the cluster.
+// member relation maintains the current in-sync replica set of the system.
+// "primary" relation has an entry for each process, which identifies the primary node to each.
+
+// Utilities
+//
+uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, notin crash(G, Node, _);
+uncrashed_nodes(G, Node)@next :- group(G, G), member(G, Node), Node != G, crash(G, Node, Time), now(G, Now), Now < Time;
+min_val( Node, min<Value>) :- write_queue(Node, _, _, Value);
+min_nodeid(G, min<Nodeid>) :- group(G, G), uncrashed_nodes(G, Node), nodeid(G, Node, Nodeid);
+max_nodeid(G, max<Nodeid>) :- group(G, G), uncrashed_nodes(G, Node), nodeid(G, Node, Nodeid);
+
+// Find max Value on the node with minimum nodeid
+max_node_val(Node, max<Value>) :- member(Node, "G"), Node != "G", log(Node, _, _, Value);
+max_node_val(Node, 0) :- member(Node, "G"), Node != "G", notin log(Node, _, _, _);
+
+// Find the maximum log value on a particular node
+log_max(Node, X, max<Value>) :- log(Node, X, _, Value);
+
+// WRITE QUEUE TO PROCESS CONCURRENT WRITES
+//
+// This ensures that a message goes out from client to one of the replicas
+write_req_msg(Node, Data, Client, Value)@async :- write_req(Client, Data, Node, Value), clients(Client);
+write_queue(Node, Data, Client, Value) :- write_req_msg(Node, Data, Client, Value);
+write_queue(Node, Data, Origin, Value)@next :- write_queue(Node, Data, Origin, Value), notin write_dequeue(Node, Data, Origin, Value);
+write_request(Node, Data, Origin, Value) :- write_queue(Node, Data, Origin, Value), min_val(Node, Value);
+write_dequeue(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value);
+write_dequeue(Node, Data, Origin, Value)@next :- write_dequeue(Node, Data, Origin, Value);
+
+// ROUTE TO PRIMARY 
+// When a request on a non-primary, it is forwarded on to the primary. Since there is no retry logic, we keep track of acknowledgements 
+// have been sent out(chain_ack_sent) in order to send out each acknowledgement exactly once. 
+// 
+write_request(Primary, Data, M, Value)@async :- write_request(M, Data, Origin, Value), primary(M, Primary), Primary != M;
+send_ack_to(M, Origin, Value)@next :- write_request(M, Data, Origin, Value), primary(M, Primary), Primary != M;
+send_ack_to(M, Origin, Value)@next :- send_ack_to(M, Origin, Value);
+
+//
+// PRIMARY TO REPLICAS.
+//
+//When a write_request appears on the primary, for every other replica alive in the system, add to the "replica_write_queue".
+replica_write_queue(Primary, Data, Other, Value, Nodeid) :- write_request(Primary, Data, _, Value), member(Primary, Other), Other != Primary, primary(Primary, Primary), nodeid(Primary, Other, Nodeid);
+
+// NEW PRIMARY TO REPLICAS - in case of primary promotion
+// In case of a primary promotion, all writes logged on the new primary are propagated to all in-sync replicas
+replica_write_queue(Node, Data, Other, Value, Nodeid) :- log(Node, Data, _, Value), member(Node, Other), Other != Node, primary_to_be(Node), nodeid(Node, Other, Nodeid);
+primary_to_be(Node) :- promote(G, Node), member(G, Node);
+
+// Replica writes are staggered.
+// This is a priority queue implementation
+
+// Process the write_request with smallest value first, followed by write with smallest nodeid
+min_replica_val(Node, min<Value>) :- member(Node, Node), replica_write_queue(Node, _, _, Value, _);
+//min_replica_val(Node, 0) :- member(Node, Node), notin replica_write_queue(Node, _, _, _, _);
+min_replica_node( Node, min<Nodeid>) :- member(Node, Node), min_replica_val(Node, Value), Value != 0, replica_write_queue(Node, _, _, Value, Nodeid);
+min_replica_node( Node, 0) :- member(Node, Node), min_replica_val(Node, Value), Value == 0;
+replica_write(Other, Data, Primary, Value, Nodeid)@async :- replica_write_queue(Primary, Data, Other, Value, Nodeid), min_replica_val(Primary, Value), primary(Primary, Primary); // min_replica_node(Primary, Nodeid);
+
+// Based on the request selected for processing, dequeue appropriately. 
+replica_write_dequeue(Primary, Data, Other, Value, Nodeid) :- replica_write_queue(Primary, Data, Other, Value, Nodeid), min_replica_val(Primary, Value), primary(Primary, Primary); // min_replica_node(Primary, Nodeid);
+// This rule in particular is to purge all replica writes cached when the primary node changes/fails
+//
+replica_write_dequeue(Node, Data, Origin, Value, Nodeid)@next :- replica_write_queue(Node, Data, Origin, Value, Nodeid), notin primary(Node, Node), Node != "G";
+replica_write_dequeue(Node, Data, Origin, Value, Nodeid)@next :- replica_write_dequeue(Node, Data, Origin, Value, Nodeid);
+
+// The request queue consists all queued requests excluding the ones that have been dequeued
+replica_write_queue(Node, Data, Origin, Value, Nodeid)@next :- replica_write_queue(Node, Data, Origin, Value, Nodeid), notin replica_write_dequeue(Node, Data, Origin, Value, Nodeid);
+
+// LOGGING WRITES
+// A write is logged at the primary at the same time replica writes are queued and at the replicas when the replica_write is received.
+//
+log(Node, Data, Origin, Value) :- replica_write(Node, Data, Origin, Value, _);
+log(Node, Data, Origin, Value) :- write_request(Node, Data, Origin, Value), primary(Node, Node);
+log(Node, Data, Origin, Value)@next :- log(Node, Data, Origin, Value);

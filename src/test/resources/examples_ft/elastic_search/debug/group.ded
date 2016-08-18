@@ -1,0 +1,141 @@
+// When a node crashes, the global process "G" peeks into the crash table and sends out a view change
+// message. The member list is only updated on receiving a view_change message. Else, the member list 
+// is maintained as is.
+view_change(G, M)@next :-	
+				group(G, G),
+				member(G, M),
+				M != G, 
+				now(G, Now),
+				crash(G, Other, Time),
+				Now == Time,
+				notin crash(G, M, Time);
+
+member(G, M)@next :-		view_change(G, M);
+
+member(G, M)@next :- 		
+				group(G, G),
+				member(G, M),
+				notin view_change(G, _);
+
+// view_change_message is the mechanism in which non-global processes learn about changes to the
+// in-sync replica set
+view_change_message(M, N)@async :-	
+					group(G, G),
+					view_change(G, M),
+					view_change(G, N),
+					M != G,
+					N != G;
+
+view_change_message(C, M)@async :- 	
+					group(G, G),
+					view_change(G, M),
+					client(G, C),
+					M != G;
+
+member(M, N)@next :-	view_change_message(M, N);
+
+member(M, N)@next :-			
+			member(M, N),
+			M != "G",
+			notin view_change_message(M, _);
+
+// "update_primary" is used to reflect primary promotion
+update_primary(M, Node)@async :-	
+				group(G, G),
+				uncrashed_nodes(G, M),
+				promote(G, Node),
+				notin update_primary_sent(G, M);
+
+update_primary_sent(G, M)@next :- 	
+				group(G, G),
+				uncrashed_nodes(G, M),
+				promote(G, Node);
+
+update_primary(G, Node)@next :- 
+				group(G, G),
+				promote(G, Node);
+
+update_primary(C, Node)@async :- 
+				group(G, G),
+				client(G, C),
+				promote(G, Node),
+				notin update_primary_sent(G, C);
+
+update_primary_sent(G, C)@next :- 	
+				group(G, G),
+				client(G, C),
+				promote(G, Node);
+
+update_primary_sent(G, M)@next :- update_primary_sent(G, M);
+
+// Maintain knowledge of primary across time
+
+primary(M, L)@next :- 	
+			primary(M, L),
+			notin update_primary(M, _),
+			notin crash(M, M, _);
+
+primary(M, L)@next :- 	
+			primary(M, L),
+			notin update_primary(M, _),
+			crash(M, M, Time),
+			now(M, Now),
+			Now < Time;
+
+primary(M, Node)@next :- update_primary(M, Node);
+
+// Clients known to the group "G"
+
+client(G, C) :-	
+		clients(C),
+		group(C, G),
+		notin client_reg(C, G);
+
+client_reg(C, G)@next:-	
+			clients(C),
+			group(C, G);
+
+client(G, C)@next :- 	
+			client(G, C), 
+			notin crash(G, C, _);
+
+client(G, C)@next :- 	
+			client(G, C),
+			crash(G, C, Time),
+			now(G, Now),
+			Now < Time;
+
+client_known(M, C) :- 	
+			clients(C),
+			member(C, M),
+			notin client_known_reg(C, M);
+
+client_known_reg(C, M)@next :- 	
+				clients(C),
+				member(C, M);
+
+client_known(M, C)@next :- 	
+				client_known(M, C),
+				notin crash(M, C, _);
+
+client_known(M, C)@next :-
+				client_known(M, C),
+				crash(M, C, Time),
+				now(G, Now),
+				Now < Time;
+
+// Primry promotion, with the node with the max nodieid being promoted.
+// This is the reverse order to the order in which staggered replica 
+// writes are propagated.
+promote(G, Node) :-	
+			group(G, G),
+			max_nodeid(G, Nodeid),
+			nodeid(G, Node, Nodeid),
+			primary(G, Primary),
+			Primary !=Node;
+
+promote(G, Node) :- 	
+			group(G, G),
+			max_nodeid(G, Nodeid),
+			nodeid(G, Node, Nodeid),
+			notin primary(G, Node);
