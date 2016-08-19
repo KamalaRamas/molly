@@ -10,28 +10,28 @@ post("Durability", X, Seq) :-
 
 no_history(X, Seq) :-	
 				ack(C, X, _, _, Seq),               // Client is acknowledged
-				member(Node, Node),
+				uncrashed_nodes("G", Node),
 				Node != "G",
 				notin history(Node, X, _, Seq);     // Corresponding record not present in ISR history
 
 //AGREEMENT INVAIRANT
 pre("Consistency", X, Seq) :- 	
 				history_max(Node, X, Seq),
-				member(Node, Node),
+				uncrashed_nodes("G", Node),
 				Node != "G", 
 				notin clients(Node);
 
 post("Consistency", X, Seq) :- 	
 				history_max(Node, X, Seq),
-				member(Node, Node),
+				uncrashed_nodes("G", Node),
 				Node != "G",
 				notin clients(Node),
 				notin no_match_exists(Node, X, Seq);
 
 no_match_exists(Node, X, Seq) :-
 				history_max(Node, X, Seq),
-				member(Node, Node),
-				member(Node, Other),
+				uncrashed_nodes("G", Node),
+				uncrashed_nodes("G", Other),
 				Node != Other,
 				notin history_max(Other, X, Seq),
 				Node != "G",

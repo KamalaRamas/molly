@@ -167,25 +167,21 @@ log(Node, Data, Origin, Value, Seq)@next :- log(Node, Data, Origin, Value, Seq);
 //
 // As soon as a replica_write is received from primary, it is acknowledged. 
 ack_int(Origin, Data, Replica, Value, Seq)@async :- 	
-							replica_write(Replica, Data, Origin, Value, Seq, _),
-						    	primary(Replica, Origin);
+							replica_write(Replica, Data, Origin, Value, Seq, _);
 
 // Before a primary can acknowledge a write, it must receive acknowledgements from all replicas. The following 3 rules ensure the same.
 missing_ack(Primary, Data, Other, Value, Seq) :- 	
 							log(Primary, Data, _, Value, Seq),
-							primary(Primary, Primary),
 							member(Primary, Other),
 							Primary != Other,
 							notin ack_int(Primary, Data, Other, Value, Seq);
 
 chain_ack(Origin, Data, Acker, Value, Seq)@async :- 	
-							primary(Acker, Acker),
 							log(Acker, Data, Origin, Value, Seq),
 							notin missing_ack(Acker, Data, _, Value, Seq),
 							notin chain_ack_sent(Acker, Data, Origin, Value, Seq);
 
 chain_ack_sent(Acker, Data, Origin, Value, Seq)@next :- 
-							primary(Acker, Acker),
 							log(Acker, Data, Origin, Value, Seq),
 							notin missing_ack(Acker, Data, _, Value, Seq);
 
@@ -193,14 +189,12 @@ chain_ack_sent(Acker, Data, Origin, Value, Seq)@next :-
 chain_ack(Origin, Data, Acker, Value, Seq)@async :- 
 							log(Acker, Data, _, Value, Seq),
 							chain_ack(Acker, Data, _, Value, Seq),
-							notin primary(Acker, Acker),
 							send_ack_to(Acker, Origin, Value),
 							notin chain_ack_sent(Acker, Data, Origin, Value, Seq);
 
 chain_ack_sent(Acker, Data, Origin, Value, Seq)@next :- 
 							log(Acker, Data, _, Value, Seq),
 							chain_ack(Acker, Data, _, Value, Seq),
-							notin primary(Acker, Acker), 
 							send_ack_to(Acker, Origin, Value);
 
 // Acknowledgements persist across time. If a chain_ack is received at a client, the write is acknowledged.

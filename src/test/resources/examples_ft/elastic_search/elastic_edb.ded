@@ -45,10 +45,8 @@ primary("C", "c")@1;
 member("G", "c")@1;
 
 // write stream.  
-write_req("C", "Data1", "c", 1)@3;
-write_req("C", "Data2", "b", 2)@1;
-//crash(Node, "c", 4) :- member(Node, Node);
-//crash(Node, "c", 4) :- clients(Node);
+write_req("C", "Data1", "c", 1)@2;
+write_req("C", "Data2", "b", 2)@7;
 
 seq("a", 1)@1;
 seq("b", 1)@1;

@@ -4,7 +4,6 @@
 view_change(G, M)@next :-	
 				group(G, G),
 				member(G, M),
-				M != G, 
 				now(G, Now),
 				crash(G, Other, Time),
 				Now == Time,
@@ -29,8 +28,7 @@ view_change_message(M, N)@async :-
 view_change_message(C, M)@async :- 	
 					group(G, G),
 					view_change(G, M),
-					client(G, C),
-					M != G;
+					client(G, C);
 
 member(M, N)@next :-	view_change_message(M, N);
 
