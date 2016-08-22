@@ -53,20 +53,18 @@ replica_write_queue(Primary, Data, Other, Value, Nodeid) :- write_request(Primar
 // NEW PRIMARY TO REPLICAS - in case of primary promotion
 // In case of a primary promotion, all writes logged on the new primary are propagated to all in-sync replicas
 replica_write_queue(Node, Data, Other, Value, Nodeid) :- log(Node, Data, _, Value), member(Node, Other), Other != Node, primary_to_be(Node), nodeid(Node, Other, Nodeid);
-primary_to_be(Node) :- promote(G, Node), member(G, Node);
+primary_to_be(Node)@async :- promote(G, Node), member(G, Node);
 
 // Replica writes are staggered.
 // This is a priority queue implementation
 
 // Process the write_request with smallest value first, followed by write with smallest nodeid
 min_replica_val(Node, min<Value>) :- member(Node, Node), replica_write_queue(Node, _, _, Value, _);
-//min_replica_val(Node, 0) :- member(Node, Node), notin replica_write_queue(Node, _, _, _, _);
 min_replica_node( Node, min<Nodeid>) :- member(Node, Node), min_replica_val(Node, Value), Value != 0, replica_write_queue(Node, _, _, Value, Nodeid);
-min_replica_node( Node, 0) :- member(Node, Node), min_replica_val(Node, Value), Value == 0;
-replica_write(Other, Data, Primary, Value, Nodeid)@async :- replica_write_queue(Primary, Data, Other, Value, Nodeid), min_replica_val(Primary, Value), primary(Primary, Primary); // min_replica_node(Primary, Nodeid);
+replica_write(Other, Data, Primary, Value, Nodeid)@async :- replica_write_queue(Primary, Data, Other, Value, Nodeid), min_replica_val(Primary, Value), primary(Primary, Primary), min_replica_node(Primary, Nodeid);
 
 // Based on the request selected for processing, dequeue appropriately. 
-replica_write_dequeue(Primary, Data, Other, Value, Nodeid) :- replica_write_queue(Primary, Data, Other, Value, Nodeid), min_replica_val(Primary, Value), primary(Primary, Primary); // min_replica_node(Primary, Nodeid);
+replica_write_dequeue(Primary, Data, Other, Value, Nodeid) :- replica_write_queue(Primary, Data, Other, Value, Nodeid), min_replica_val(Primary, Value), primary(Primary, Primary), min_replica_node(Primary, Nodeid);
 // This rule in particular is to purge all replica writes cached when the primary node changes/fails
 //
 replica_write_dequeue(Node, Data, Origin, Value, Nodeid)@next :- replica_write_queue(Node, Data, Origin, Value, Nodeid), notin primary(Node, Node), Node != "G";

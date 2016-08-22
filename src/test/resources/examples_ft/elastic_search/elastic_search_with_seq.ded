@@ -42,7 +42,7 @@ max_nodeid(G, max<Nodeid>) :-
 // Find the maximum log value on a particular node
 log_max(Node, X, max<Value>) :- log(Node, X, _, Value, _);
 
-history_max(Node, X, max<Seq>) :- history(Node, X, _, Seq);
+history_max(Node, max<Seq>) :- history(Node, _, _, Seq);
 
 // WRITE QUEUE TO PROCESS CONCURRENT WRITES
 //
