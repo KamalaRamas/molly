@@ -127,8 +127,8 @@ client_known(M, C)@next :-
 // writes are propagated.
 promote(G, Node) :-	
 			group(G, G),
-			max_nodeid(G, Nodeid),
-			nodeid(G, Node, Nodeid),
+			max_nodeid(G, Nodeid),              // max_nodeid is used to promote processes in the 
+			nodeid(G, Node, Nodeid),            // reverse order that replica_writes are staggered
 			primary(G, Primary),
 			Primary !=Node;
 

@@ -10,6 +10,7 @@ group(M, "G") :-
 		cchange(M, "A", "G"),
 		notin group(M, "G");
 
+//Used as part of initialisation logic
 begin("a")@1;
 begin("b")@1;
 begin("c")@1;
@@ -42,12 +43,14 @@ primary("b", "c")@1;
 primary("c", "c")@1;
 primary("C", "c")@1;
 
+// Primary node is the first node to be part of ISR
 member("G", "c")@1;
 
 // write stream.  
 write_req("C", "Data1", "c", 1)@2;
 write_req("C", "Data2", "b", 2)@7;
 
+// Maintain sequence numbers
 seq("a", 1)@1;
 seq("b", 1)@1;
 seq("c", 1)@1;

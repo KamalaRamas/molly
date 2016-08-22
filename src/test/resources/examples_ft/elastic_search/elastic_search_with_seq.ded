@@ -1,6 +1,13 @@
 include "group.ded";
 include "elastic_edb.ded";
 
+// At what stage are we?
+// Sequence numbers for non-concurrent writes modeled
+// Since only sequence numbers are checked and writes are dropped if sequence numbers match,
+// we discover the inconsistency in which a non-primary has an unacknowledged write of a given 
+// sequence number and therefore drops the write from primary which picks the same sequence number
+// as that of unacknowledged write, leading to an inconsistency.
+
 // General comments: 
 // Queueing logic : Queuing logic has been employed in a couple of places to stagger writes and handle concurrent
 // client writes
@@ -13,9 +20,10 @@ include "elastic_edb.ded";
 
 // Utilities
 //
+// Keeps track of the uncrashed nodes at every instant
 uncrashed_nodes(G, Node)@next :-
 				group(G, G),
-				member(G, Node),
+				member(G, Node),            
 				Node != G,
 				notin crash(G, Node, _);
 
@@ -59,7 +67,7 @@ write_queue(Node, Data, Origin, Value)@next :-
 
 write_request(Node, Data, Origin, Value) :- 	
 						write_queue(Node, Data, Origin, Value),
-						min_val(Node, Value);
+						min_val(Node, Value);                         // Process request with the lowest value first
 
 write_dequeue(Node, Data, Origin, Value) :- 	write_request(Node, Data, Origin, Value);
 
@@ -74,7 +82,7 @@ write_request(Primary, Data, M, Value)@async :-
 						primary(M, Primary),
 						Primary != M;
 
-send_ack_to(M, Origin, Value)@next :- 	
+send_ack_to(M, Origin, Value)@next :-
 					write_request(M, _, Origin, Value), 
 					primary(M, Primary),
 					Primary != M;
@@ -226,13 +234,15 @@ seq(Primary, Seq)@next :-
 				notin write_request_seq(Primary, _, _, _, _);
 
 // Log writes to contain the sequence number too - History relation
-history(Node, Data, Origin, Seq)@next :- int(Node, Data, Origin, Seq);
+// The "int_history" relation checks if the sequence number corresponding to 
+// the write is looged and only logs the request if not
+history(Node, Data, Origin, Seq)@next :- int_history(Node, Data, Origin, Seq);
 
-int(Node, Data, Origin, Seq) :- 
+inti_history(Node, Data, Origin, Seq) :- 
 				write_request_seq(Node, Data, Origin, _, Seq),
 				primary(Node, Node), notin history(Node, _, _, Seq);
 
-int(Node, Data, Origin, Seq) :- 
+int_history(Node, Data, Origin, Seq) :- 
 				replica_write(Node, Data, Origin, _, Seq, _), 
 				notin history(Node, _, _, Seq);
 
