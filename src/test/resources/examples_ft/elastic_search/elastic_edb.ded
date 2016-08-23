@@ -47,8 +47,8 @@ primary("C", "c")@1;
 member("G", "c")@1;
 
 // write stream.  
-write_req("C", "Data1", "c", 1)@2;
-write_req("C", "Data2", "b", 2)@7;
+write_request_outgoing("C", "Data1", "c", 1)@2;
+write_request_outgoing("C", "Data2", "b", 2)@7;
 
 // Maintain sequence numbers
 seq("a", 1)@1;
