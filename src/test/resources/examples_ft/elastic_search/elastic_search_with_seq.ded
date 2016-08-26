@@ -50,7 +50,8 @@ max_nodeid(G, max<Nodeid>) :-
 // Find the maximum log value on a particular node
 log_max(Node, X, max<Value>) :- log(Node, X, _, Value, _);
 
-history_max(Node, max<Seq>) :- history(Node, _, _, Seq);
+term_max(Node, max<Term>) :- member(Node, Node), history(Node, _, Term, _);
+seq_max(Node, max<Seq>) :- member(Node, Node), term_max(Node, Term), history(Node, _, Term, Seq);
 
 // WRITE QUEUE TO PROCESS CONCURRENT WRITES
 //
@@ -118,6 +119,11 @@ replica_write_queue(Node, Data, Other, Value, Seq, Nodeid) :-
 primary_to_be(Node)@async :- 	
 				promote(G, Node),
 				member(G, Node);
+
+primary_to_be(Node)@next :-
+                member(Node, Node),
+                primary_to_be(Node),
+                notin primary(Node, Node);
 
 // Replica writes are staggered.
 // This is a priority queue implementation
@@ -229,7 +235,7 @@ ack_int(Origin, Data, Acker, Value, Seq)@next :- ack_int(Origin, Data, Acker, Va
 ack(Origin, Data, Acker, Value, Seq)@next :- ack(Origin, Data, Acker, Value, Seq);
 
 // Update sequence number on primary
-seq(Primary, Seq+1)@next :-	
+seq(Primary, Seq+1)@next :-
 				primary(Primary, Primary),
 				seq(Primary, Seq),
 				write_request_seq_processing(Primary, _, _, _, Seq);
@@ -242,19 +248,60 @@ seq(Primary, Seq)@next :-
 // Log writes to contain the sequence number too - History relation
 // The "int_history" relation checks if the sequence number corresponding to 
 // the write is looged and only logs the request if not
-history(Node, Data, Origin, Seq)@next :- int_history(Node, Data, Origin, Seq);
+history(Node, Data, Term, Seq)@next :- int_history(Node, Data, Term, Seq);
 
-int_history(Node, Data, Origin, Seq) :- 
-				write_request_seq_processing(Node, Data, Origin, _, Seq),
-				primary(Node, Node), notin history(Node, _, _, Seq);
+int_history(Node, Data, Curterm, Seq) :-
+                write_request_seq_processing(Node, Data, _, _, Seq),
+                primary(Node, Node),
+                term(Node, Curterm),
+                notin dont_log(Node, _, Curterm, Seq);
 
-int_history(Node, Data, Origin, Seq) :- 
-				replica_write_request_incoming(Node, Data, Origin, _, Seq, _), 
-				notin history(Node, _, _, Seq);
+// Don't log if history contains a newer log
+dont_log(Node, Data, Curterm, Seq) :-
+				write_request_seq_processing(Node, Data, _, _, Seq),
+				history(Node, _, Term, Seq),
+                term(Node, Curterm),
+                Term > Curterm;
 
-history(Node, Data, Origin, Seq) :-	
-					ack(Node, Data, Origin, _, Seq),
+// Don't log if the same term/sequence number has been logged
+dont_log(Node, Data, Curterm, Seq) :-
+				write_request_seq_processing(Node, Data, _, _, Seq),
+				history(Node, _, Term, Seq),
+                term(Node, Curterm),
+                Term == Curterm;
+
+int_history(Node, Data, Curterm, Seq) :-
+                replica_write_request_incoming(Node, Data, _, _, Seq, _),
+                term(Node, Curterm),
+                notin dont_log(Node, _, Curterm, Seq);
+
+// Don't log if the history contains a newer log
+dont_log(Node, Data, Curterm, Seq) :-
+				replica_write_request_incoming(Node, Data, _, _, Seq, _),
+				history(Node, _, Term, Seq),
+                term(Node, Curterm),
+                Term > Curterm;
+
+// Don't log if the term/sequence number has been logged
+dont_log(Node, Data, Curterm, Seq) :-
+				replica_write_request_incoming(Node, Data, _, _, Seq, _),
+				history(Node, _, Term, Seq),
+                term(Node, Curterm),
+                Term == Curterm;
+
+// This is a special case. When primary promotion happens, a previously looged entry 
+// may be re-sent with a higher term #. This prevents logging of the same.
+dont_log(Node, Data1, Curterm, Seq) :-
+				replica_write_request_incoming(Node, Data1, _, _, Seq, _),
+				history(Node, Data2, Term, Seq),
+                term(Node, Curterm),
+                Curterm > Term,
+                Data1 == Data2;
+
+history(Node, Data, Term, Seq) :-
+					ack(Node, Data, _, _, Seq),
+                    term(Node, Term),
 					clients(Node);
 
 // History persists across time
-history(Node, Data, Origin, Seq)@next :- history(Node, Data, Origin, Seq);
+history(Node, Data, Term, Seq)@next :- history(Node, Data, Term, Seq);
