@@ -130,10 +130,22 @@ promote(G, Node) :-
 			max_nodeid(G, Nodeid),              // max_nodeid is used to promote processes in the 
 			nodeid(G, Node, Nodeid),            // reverse order that replica_writes are staggered
 			primary(G, Primary),
-			Primary !=Node;
+			Primary !=Node,
+            notin promoted(G, Node);
 
 promote(G, Node) :- 	
 			group(G, G),
 			max_nodeid(G, Nodeid),
 			nodeid(G, Node, Nodeid),
-			notin primary(G, Node);
+			notin primary(G, Node),
+            notin promoted(G, Node);
+
+// The "promoted" relation has been introduced to ensure that "promote" message is sent exactly once
+promoted(G, Node)@next :-
+            group(G, G),
+            promote(G, Node);
+
+promoted(G, Node)@next :-
+            promoted(G, Node),
+            uncrashed_nodes(G, Node),
+            notin primary(G, Node);
