@@ -72,7 +72,7 @@ class Verifier(
   }
 
   private val failureFreeGood = failureFreeUltimateModel.tableAtTime("post", failureSpec.eot).toSet
-  private val failureFreePre = failureFreeUltimateModel.tableAtTime("post", failureSpec.eot).toSet
+  private val failureFreePre = failureFreeUltimateModel.tableAtTime("pre", failureSpec.eot).toSet
 
   if (failureFreeGood.isEmpty && !failureFreePre.isEmpty) {
     throw new IllegalStateException("'post' was empty in the failure-free run")
@@ -198,12 +198,16 @@ class Verifier(
 
     logger.debug(s"FFG: $failureFreeGood.  PRE: $pres. ")
 
-    val diff = failureFreeGood -- model.tableAtTime("post", failureSpec.eot)
+    val diff = model.tableAtTime("pre", failureSpec.eot).toSet -- model.tableAtTime("post", failureSpec.eot).toSet
 
-    (model.tableAtTime("post", failureSpec.eot).toSet == failureFreeGood ||
+    logger.warn(s"FFG: $failureFreeGood.  PRE: $pres. POST: $posts.")
+    logger.warn(s"FFG: Diff: $diff.")
+
+    (//model.tableAtTime("post", failureSpec.eot).toSet == failureFreeGood ||
       //failureFreeGood.toList.forall(g => !pres.contains(g))
-      diff.toList.forall(g => !pres.contains(g))
-    )
+      diff.isEmpty  
+      )
+    ;
   }
 
   /**
