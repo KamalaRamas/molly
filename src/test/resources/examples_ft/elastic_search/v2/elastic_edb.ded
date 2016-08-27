@@ -1,0 +1,67 @@
+// replica init
+// The "group" relation specifies all prcesses that can ever be part of the group
+group("a", "G")@1;
+group("b", "G")@1;
+group("c", "G")@1;
+group("C", "G")@1;
+group("G", "G")@1;
+group(M, G)@next :- group(M, G);
+group(M, "G") :- cchange(M, "A", "G"), notin group(M, "G");
+
+begin("a")@1;
+begin("b")@1;
+begin("c")@1;
+begin("G")@1;
+
+// Nodes are assigned nodeids at the beginning of each run
+nodeid("G", "a", 1)@1;
+nodeid("G", "b", 2)@1;
+nodeid("G", "c", 3)@1;
+nodeid("a", "a", 1)@1;
+nodeid("a", "b", 2)@1;
+nodeid("a", "c", 3)@1;
+nodeid("b", "a", 1)@1;
+nodeid("b", "b", 2)@1;
+nodeid("b", "c", 3)@1;
+nodeid("c", "a", 1)@1;
+nodeid("c", "b", 2)@1;
+nodeid("c", "c", 3)@1;
+nodeid(Node1, Node2, Nodeid)@next :- nodeid(Node1, Node2, Nodeid);
+
+// client init
+clients("C")@1;
+clients(C)@next :- clients(C);
+
+// "primary" designates the primary in the cluster.
+// "member" represents the in-sync replica set at any instant of time
+primary("G", "c")@1;
+primary("a", "c")@1;
+primary("b", "c")@1;
+primary("c", "c")@1;
+primary("C", "c")@1;
+
+member("G", "c")@1;
+
+// write stream.  
+write_req("C", "Data1", "b", 1)@1;
+write_req("C", "Data2", "c", 2)@1;
+
+//Maintain "now" relation
+now("G", 1)@1;
+now("a", 1)@1;
+now("b", 1)@1;
+now("c", 1)@1;
+now("C", 1)@1;
+now(Node, Time+1)@next :- now(Node, Time);
+
+//Initialization logic - some @async are dropped here
+// "establish in-sync replica set membership" as a replica
+member(G, M) :- begin(M), group(M, G);
+
+// Propagate the in-sync replica info to other replicas
+member(M, N) :- group(G, G), member(G, M), member(G, N), M != G, N != G, notin propagate(G, M, N);
+propagate(G, M, N)@next :- group(G, G), member(G, M), member(G, N), M != G;
+
+// Propagate the in-sync replica info to client
+member(C, M) :- group(G, G), member(G, M), client(G, C), notin propagate(G, C, M);
+propagate(G, C, M)@next :- group(G, G), member(G, M), client(G, C);

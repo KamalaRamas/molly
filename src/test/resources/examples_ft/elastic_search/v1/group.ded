@@ -1,0 +1,21 @@
+// "establish in-sync replica set membership" as a replica
+member(G, M) :- begin(M), group(M, G);
+
+// Propagate in-sync replica information at each time step
+member(G, M)@async :- group(M, G), notin cchange(M, "D", G), group(G, G);
+member(C, M) :- member(G, M), client(G, C);
+member(A, M) :- member(G, A), member(G, M), group(G, G), A != "G", M != "G", notin client(G, A), notin client(G, M);
+
+// Maintain knowledge of primary across time
+primary(G, L)@next :- group(G, G), primary(G, L), member(G, L), notin promote(G, _);
+primary(G, Node)@next :- group(G, G), promote(G, Node);
+primary(M, L)@next :- primary(G, L), member(G, M), member(G, L), group(G, G);
+primary(C, L)@next :- primary(G, L), client(G, C), member(G, L), group(G, G);
+
+client(G, C)@next :- clients(C), group(C, G);
+
+// Primry promotion, with the node with the max nodieid being promoted. This is the reverse order to the order in which staggered replica writes 
+// are propagated.
+promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), primary(G, Primary), Primary !=Node;
+promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), notin primary(G, _);
+
