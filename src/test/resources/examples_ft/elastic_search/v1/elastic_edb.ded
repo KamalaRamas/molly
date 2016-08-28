@@ -37,3 +37,14 @@ min_nodeid(G, min<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Node
 max_nodeid(G, max<Nodeid>) :- group(G, G), member(G, Node), nodeid(G, Node, Nodeid);
 max_node_val(Node, max<Value>) :- min_nodeid("G", Nodeid), nodeid("G", Node, Nodeid), log(Node, _, _, Value);
 
+//Initialization logic - some @async are dropped here
+// "establish in-sync replica set membership" as a replica
+member(G, M) :- begin(M), group(M, G);
+
+// Propagate the in-sync replica info to other replicas
+member(M, N) :- group(G, G), member(G, M), member(G, N), M != G, N != G, notin propagate(G, M, N);
+propagate(G, M, N)@next :- group(G, G), member(G, M), member(G, N), M != G;
+
+// Propagate the in-sync replica info to client
+member(C, M) :- group(G, G), member(G, M), client(G, C), notin propagate(G, C, M);
+propagate(G, C, M)@next :- group(G, G), member(G, M), client(G, C);

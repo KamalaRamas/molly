@@ -1,11 +1,3 @@
-// "establish in-sync replica set membership" as a replica
-member(G, M) :- begin(M), group(M, G);
-
-// Propagate in-sync replica information at each time step
-member(G, M)@async :- group(M, G), notin cchange(M, "D", G), group(G, G);
-member(C, M) :- member(G, M), client(G, C);
-member(A, M) :- member(G, A), member(G, M), group(G, G), A != "G", M != "G", notin client(G, A), notin client(G, M);
-
 // Maintain knowledge of primary across time
 primary(G, L)@next :- group(G, G), primary(G, L), member(G, L), notin promote(G, _);
 primary(G, Node)@next :- group(G, G), promote(G, Node);
@@ -18,4 +10,18 @@ client(G, C)@next :- clients(C), group(C, G);
 // are propagated.
 promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), primary(G, Primary), Primary !=Node;
 promote(G, Node) :- group(G, G), max_nodeid(G, Nodeid), nodeid(G, Node, Nodeid), notin primary(G, _);
+
+// When a node crashes, the global process "G" peeks into the crash table and sends out a view change
+// message. The member list is only updated on receiving a view_change message. Else, the member list 
+// is maintained as is.
+view_change(G, M)@next :- group(G, G), member(G, M), M != G, now(G, Now), crash(G, Other, Time), Now == Time, notin crash(G, M, Time);
+member(G, M)@next :- view_change(G, M);
+member(G, M)@next :- group(G, G), member(G, M), notin view_change(G, _);
+
+// view_change_message is the mechanism in which non-global processes learn about changes to the
+// in-sync replica set
+view_change_message(M, N)@async :- group(G, G), view_change(G, M), view_change(G, N), M != G, N != G;
+view_change_message(C, M)@async :- group(G, G), view_change(G, M), client(G, C), M != G;
+member(M, N)@next :- view_change_message(M, N);
+member(M, N)@next :- member(M, N), M != "G",  notin view_change_message(M, _);
 

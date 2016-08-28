@@ -240,6 +240,26 @@ seq(Primary, Seq+1)@next :-
 				seq(Primary, Seq),
 				write_request_seq_processing(Primary, _, _, _, Seq);
 
+// We do not expect the following two rules to fire, but they are here for completeness
+
+// This rule states that if somehow the write_request received a sequence number 
+// greater than the current sequence number, icrement the higher sequence number
+seq(Primary, Seq2+1)@next :-
+				primary(Primary, Primary),
+				seq(Primary, Seq1),
+				write_request_seq_processing(Primary, _, _, _, Seq2),
+                Seq2 > Seq1;
+
+// The following rule seems even more unlikely than the last. The write_request
+// should never receive a sequence number less than that which the primary
+// knows off. If by some derivation it does, however, stick with the higher
+// known sequence number
+seq(Primary, Seq1)@next :-
+				primary(Primary, Primary),
+				seq(Primary, Seq1),
+				write_request_seq_processing(Primary, _, _, _, Seq2),
+                Seq2 < Seq1;
+
 seq(Primary, Seq)@next :- 	
 				primary(Primary, Primary),
 				seq(Primary, Seq),
