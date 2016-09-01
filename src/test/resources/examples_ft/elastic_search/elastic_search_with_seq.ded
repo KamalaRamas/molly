@@ -374,7 +374,7 @@ seq(Primary, Seq)@next :-
 				seq(Primary, Seq),
 				notin write_request_seq_processing(Primary, _, _, _, _, _);
 
-// If the incoming write request has a term#>=the Current term on the node, the request is logged.
+// If the incoming write request has a term# >= Current term# on the node, the request is logged.
 history(Node, Data, Term, Seq) :-
                 write_request_seq_processing(Node, Data, _, _, Term, Seq),
                 primary(Node, Node),
@@ -408,8 +408,45 @@ history(Node, Data, Term, Seq) :-
                 Curterm == Primaryterm;
 
 history(Node, Data, Term, Seq) :-
-					ack(Node, Data, _, _, Term, Seq),
-					clients(Node);
+				ack(Node, Data, _, _, Term, Seq),
+				clients(Node);
 
 // History persists across time
-history(Node, Data, Term, Seq)@next :- history(Node, Data, Term, Seq);
+history(Node, Data, Term, Seq)@next :- 
+                        history(Node, Data, Term, Seq),
+                        notin erase_history(Node, Data, Term, Seq);
+
+// Keep track of highest sequence numbers
+highest_history_seq(Node, max<Seq>) :-
+                        member(Node, Node),
+                        history(Node, _, _, Seq);
+
+highest_history_seq(Node, 0) :-
+                        member(Node, Node),
+                        notin history(Node, _, _, _);
+
+unbroken_seq(Node, Seq1)@next :-
+                    unbroken_seq(Node, Seq1),
+                    highest_history_seq(Node, Seq2),
+                    Seq2 != Seq1 + 1;
+
+unbroken_seq(Node, Seq2)@next :-
+                    unbroken_seq(Node, Seq1),
+                    highest_history_seq(Node, Seq2),
+                    Seq2 == Seq1 + 1;
+
+trim(Other, Trimseq) :-
+                    resync_now(Node),
+                    primary_to_be(Node),
+                    unbroken_seq(Node, Trimseq),
+                    member(Node, Other), 
+                    Other != "G",
+                    Node != Other;
+
+erase_history(Node, Data, Term, Seq) :-
+                    history(Node, Data, Term, Seq),
+                    trim(Node, Trimseq),
+                    Seq > Trimseq;
+
+erase_history(Node, Data, Term, Seq)@next :-
+                    erase_history(Node, Data, Term, Seq);
