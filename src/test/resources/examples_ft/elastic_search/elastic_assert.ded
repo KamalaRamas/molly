@@ -1,29 +1,29 @@
 include "elastic_search_with_seq.ded";
 
 //DURABILITY INVARIANT
-pre("Durability", X, Seq) :-	
-				ack(C, X, _, _, Seq);			// If client is acknowledged
+pre("Durability", X, Term, Seq) :-	
+				ack(C, X, _, _, Term, Seq);			// If client is acknowledged
 
-post("Durability", X, Seq) :-	
-				ack(C, X, _, _, Seq),	        // If cliient is acknowledged with payload X and seq number Seq,
+post("Durability", X, Term, Seq) :-	
+				ack(C, X, _, _, Term, Seq),	        // If cliient is acknowledged with payload X and seq number Seq,
 				notin no_history(X, Seq);       // then it is not the case that it is absent from any ISR
 
 no_history(X, Seq) :-	
-				ack(C, X, _, _, Seq),               // Client is acknowledged
+				ack(C, X, _, _, Term, Seq),               // Client is acknowledged
 				uncrashed_nodes("G", Node),
 				Node != "G",
 				notin history(Node, X, _, Seq);     // Corresponding record not present in ISR history
 
 //AGREEMENT INVAIRANT
-pre("Consistency", X, Seq) :- 	                    
-				seq_max(Node, Seq),                     // On some node, the maximum sequence number is "Seq"    
+pre("Consistency", X, Maxterm, Seq) :- 	                    
+				seq_max(Node, Seq),                  // On some node, the maximum sequence number is "Seq"    
 				term_max(Node, Maxterm),
                 history(Node, X, Maxterm, Seq),        // and payload is "X"
                 uncrashed_nodes("G", Node),      
 				Node != "G", 
 				notin clients(Node);
 
-post("Consistency", X, Seq) :- 	
+post("Consistency", X, Maxterm, Seq) :- 	
 				seq_max(Node, Seq),
                 term_max(Node, Maxterm),
                 history(Node, X, Maxterm, Seq),
