@@ -160,14 +160,37 @@ replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid)@next :-
 									notin replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid);
 
 // NEW PRIMARY TO REPLICAS - in case of primary promotion
+// This is part of the new resync logic and therefore, takes a different processing path than regualr replica_writes
+// The following code is largely similar to the previous queue based processing logic, but the entries have some extra
+// attributes to account for the fact that we are re-syncing the older entries in a new term
 // In case of a primary promotion, all writes logged on the new primary are propagated to all in-sync replicas
 resync_replica_write_queue(Node, Data, Other, Value, Term, Seq, Nodeid, Primaryterm) :- 	
 								log(Node, Data, _, Value, Term, Seq),
 								member(Node, Other),
 								Other != Node,
 								primary_to_be(Node),
+                                resync_now(Node),
                                 term(Node, Primaryterm),
 								nodeid(Node, Other, Nodeid);
+
+// The following logic is to couple the change in the primary term sending out the resync messages.
+// We only want to send the resync messages once the primary term has been updated.
+// This logic may be a bit fragile: changes to the promote relation will directly impact the coupling
+max_updated(G, max<Term>) :-
+            group(G, G),
+            update_term(G, Term);
+
+primary_term_compare(Node, Globalterm)@async :-
+                            max_updated(G, Globalterm),
+                            promote(G, Node);
+
+primary_term_compare(Node, Term)@next :-
+                            primary_term_compare(Node, Term);
+
+resync_now(Node) :-
+                primary_term_compare(Node, Globalterm), 
+                term(Node, Term),
+                Globalterm == Term;
 
 primary_to_be(Node)@async :- 	
 				promote(G, Node),
@@ -224,7 +247,8 @@ resync_replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid, Primary
 
 // LOGGING WRITES
 // A write is logged at the primary at the same time replica writes are queued and at the replicas when the replica_write is received.
-//
+// While logging writes, we only process incoming requests if the term number of the request is greater than or equsl to that of the 
+// node at which the request is being processed.
 log(Node, Data, Origin, Value, Term, Seq) :- 
                                         replica_write_request_incoming(Node, Data, Origin, Value, Term, Seq, _),
                                         term(Node, Curterm), 
@@ -262,7 +286,8 @@ log(Node, Data, Origin, Value, Term, Seq)@next :- log(Node, Data, Origin, Value,
 //
 // ACKNOWLEDGEMENT LOGIC
 //
-// As soon as a replica_write is received from primary, it is acknowledged. 
+// As soon as a replica_write is received from primary, it is acknowledged.
+// Any write_request that is received but ignored due to an older term# is not acknowledged
 replica_write_response_outgoing(Origin, Data, Replica, Value, Term, Seq)@async :- 	
 							replica_write_request_incoming(Replica, Data, Origin, Value, Term, Seq, _),
                             term(Node, Curterm),
@@ -308,7 +333,7 @@ chain_ack(Origin, Data, Acker, Value, Term, Seq)@next :-
                                         write_response_outgoing(Origin, Data, Acker, Value, Term, Seq);
 
 // Acknowledgements persist across time. If a chain_ack is received at a client, the write is acknowledged.
-ack(Origin, Data, Acker, Value, Term, Seq) :- 
+ack(Origin, Data, Acker, Value, Term, Seq) :-
 					chain_ack(Origin, Data, Acker, Value, Term, Seq),
 					clients(Origin);
  
@@ -349,9 +374,7 @@ seq(Primary, Seq)@next :-
 				seq(Primary, Seq),
 				notin write_request_seq_processing(Primary, _, _, _, _, _);
 
-// Log writes to contain the sequence number too - History relation
-// The "int_history" relation checks if the sequence number corresponding to 
-// the write is looged and only logs the request if not
+// If the incoming write request has a term#>=the Current term on the node, the request is logged.
 history(Node, Data, Term, Seq) :-
                 write_request_seq_processing(Node, Data, _, _, Term, Seq),
                 primary(Node, Node),
