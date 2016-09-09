@@ -91,8 +91,29 @@ send_response_to(M, Origin, Value)@next :-
 send_response_to(M, Origin, Value)@next :- 	send_response_to(M, Origin, Value);
 
 //Append sequence number to write request
-write_request_seq_processing(Primary, Data, Origin, Value, Term,  Seq) :-	
-							            write_request_processing(Primary, Data, Origin, Value),
+
+min_queue_val(Primary, min<Value>) :- primary(Primary, Primary),
+                                    write_request_seq_queue(Primary, _, _, Value);
+
+write_request_seq_queue(Primary, Data, Origin, Value) :-
+                                        write_request_processing(Primary, Data, Origin, Value),
+                                        primary(Primary, Primary);
+
+write_request_seq_queue(Primary, Data, Origin, Value)@next :-
+                                        write_request_seq_queue(Primary, Data, Origin, Value),
+                                        notin write_request_seq_dequeue(Primary, Data, Origin, Value);
+
+write_request_seq_dequeue(Primary, Data, Origin, Value) :-
+							            write_request_seq_queue(Primary, Data, Origin, Value),
+                                        min_queue_val(Primary, Value),
+							            primary(Primary, Primary);
+
+write_request_seq_dequeue(Primary, Data, Origin, Value)@next :-
+                                        write_request_seq_dequeue(Primary, Data, Origin, Value);
+
+write_request_seq_processing(Primary, Data, Origin, Value, Term,  Seq)@next :-	
+							            write_request_seq_queue(Primary, Data, Origin, Value),
+                                        min_queue_val(Primary, Value),
 							            primary(Primary, Primary),
 							            seq(Primary, Seq),
                                         term(Primary, Term);
@@ -347,32 +368,12 @@ ack(Origin, Data, Acker, Value, Term, Seq)@next :- ack(Origin, Data, Acker, Valu
 seq(Primary, Seq+1)@next :-
 				primary(Primary, Primary),
 				seq(Primary, Seq),
-				write_request_seq_processing(Primary, _, _, _, _, Seq);
+				write_request_seq_queue(Primary, _, _, _);
 
-// We do not expect the following two rules to fire, but they are here for completeness
-
-// This rule states that if somehow the write_request received a sequence number 
-// greater than the current sequence number, icrement the higher sequence number
-seq(Primary, Seq2+1)@next :-
-				primary(Primary, Primary),
-				seq(Primary, Seq1),
-				write_request_seq_processing(Primary, _, _, _, _, Seq2),
-                Seq2 > Seq1;
-
-// The following rule seems even more unlikely than the last. The write_request
-// should never receive a sequence number less than that which the primary
-// knows off. If by some derivation it does, however, stick with the higher
-// known sequence number
-seq(Primary, Seq1)@next :-
-				primary(Primary, Primary),
-				seq(Primary, Seq1),
-				write_request_seq_processing(Primary, _, _, _, _, Seq2),
-                Seq2 < Seq1;
-
-seq(Primary, Seq)@next :- 	
+seq(Primary, Seq)@next :-
 				primary(Primary, Primary),
 				seq(Primary, Seq),
-				notin write_request_seq_processing(Primary, _, _, _, _, _);
+				notin write_request_seq_queue(Primary, _, _, _);
 
 // If the incoming write request has a term# >= Current term# on the node, the request is logged.
 history(Node, Data, Term, Seq) :-
