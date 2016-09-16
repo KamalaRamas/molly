@@ -47,8 +47,8 @@ primary("C", "c")@1;
 member("G", "c")@1;
 
 // write stream.  
-write_request_outgoing("C", "Data1", "c", 1)@2;
-write_request_outgoing("C", "Data2", "b", 2)@7;
+write_request_outgoing("C", "Data1", "c", 1)@1;
+write_request_outgoing("C", "Data2", "c", 2)@1;
 
 // Maintain sequence numbers
 seq("a", 1)@1;
@@ -143,4 +143,4 @@ propagate(G, C, M)@next :-
 // Highest unbroken sequence number
 unbroken_seq("a", 0)@1;
 unbroken_seq("b", 0)@1;
-unbroaken_seq("c", 0)@1;
+unbroken_seq("c", 0)@1;

@@ -92,10 +92,11 @@ send_response_to(M, Origin, Value)@next :- 	send_response_to(M, Origin, Value);
 
 //Append sequence number to write request
 
-min_queue_val(Primary, min<Value>) :- primary(Primary, Primary),
+min_queue_val(Primary, min<Value>) :- 
+                                    primary(Primary, Primary),
                                     write_request_seq_queue(Primary, _, _, Value);
 
-write_request_seq_queue(Primary, Data, Origin, Value) :-
+write_request_seq_queue(Primary, Data, Origin, Value)@next :-
                                         write_request_processing(Primary, Data, Origin, Value),
                                         primary(Primary, Primary);
 
