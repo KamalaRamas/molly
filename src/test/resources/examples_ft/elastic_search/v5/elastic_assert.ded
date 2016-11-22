@@ -1,0 +1,127 @@
+include "elastic_search_with_seq.ded";
+
+//DURABILITY INVARIANT
+pre("Durability", X, Term, Seq) :-	
+				ack(C, X, _, _, Term, Seq);			// If client is acknowledged
+
+post("Durability", X, Term, Seq) :-	
+				ack(C, X, _, _, Term, Seq),	        // If cliient is acknowledged with payload X and seq number Seq,
+				notin no_history(X, Seq);       // then it is not the case that it is absent from any ISR
+
+no_history(X, Seq) :-	
+				ack(C, X, _, _, Term, Seq),               // Client is acknowledged
+				uncrashed_nodes("G", Node),
+				Node != "G",
+				notin history(Node, X, _, Seq);     // Corresponding record not present in ISR history
+
+//AGREEMENT INVAIRANT
+pre("Consistency", X, Maxterm, Seq) :- 	                    
+				seq_max(Node, Seq),                  // On some node, the maximum sequence number is "Seq"    
+				term_max(Node, Maxterm),
+                history(Node, X, Maxterm, Seq),        // and payload is "X"
+                uncrashed_nodes("G", Node),      
+				Node != "G", 
+				notin clients(Node);
+
+post("Consistency", X, Maxterm, Seq) :- 	
+				seq_max(Node, Seq),
+                term_max(Node, Maxterm),
+                history(Node, X, Maxterm, Seq),
+				uncrashed_nodes("G", Node),
+				Node != "G",
+				notin clients(Node),                
+				notin no_seq_match(Node, Seq),       // then there does not exist a node with a lower seq #
+                notin no_term_match(Node, Maxterm),
+                notin no_payload_match(Node, X);        // or a node for which sequence numbers match, but payloads dont
+
+no_seq_match(Node, Seq) :-
+				seq_max(Node, Seq),
+				uncrashed_nodes("G", Node),
+				uncrashed_nodes("G", Other),
+				Node != Other,
+				notin seq_max(Other, Seq),              // check that max seq # on all nodes is equal
+				Node != "G",
+				Other != "G",
+				notin clients(Node),
+				notin clients(Other);
+
+no_term_match(Node, Term) :-
+                term_max(Node, Term),
+				uncrashed_nodes("G", Node),
+				uncrashed_nodes("G", Other),
+				Node != Other,
+				notin term_max(Other, Term),            // check that max term # on all nodes is equal
+				Node != "G",
+				Other != "G",
+				notin clients(Node),
+				notin clients(Other);
+
+no_payload_match(Node, X1) :-
+                seq_max(Node, Seq),                     // Assuming term and sequence numbers match
+                term_max(Node, Term),
+                history(Node, X1, Term, Seq),          // check that payloads on all nodes are same
+                history(Other, X2, Term, Seq),
+                X1 != X2,
+                uncrashed_nodes("G", Node), 
+                uncrashed_nodes("G", Other), 
+                Node != Other, 
+                Node != "G", 
+                Other != "G",
+                notin clients(Node),
+                notin clients(Other);
+
+// EXTENDED AGREEMENT INVARIANT 
+// Check that all nodes agree on all writes, not only the write with the max seq number
+pre("ExtendedConsistency", X, Term, Seq) :- 	                    
+				member(Node, Node),
+                history(Node, X, Term, Seq),        // for each node, payload is "X"
+                uncrashed_nodes("G", Node),      
+				Node != "G", 
+				notin clients(Node);  
+
+post("ExtendedConsistency", X, Maxterm, Seq) :- 	
+				member(Node, Node),
+                history(Node, X, Maxterm, Seq),
+				uncrashed_nodes("G", Node),
+				Node != "G",
+				notin clients(Node),                
+				notin no_seq_match_extended(Node, Seq),       // then there does not exist a node which seq numbers don't match 
+                notin no_term_match_extended(Node, Maxterm),
+                notin no_payload_match_extended(Node, X);        // or a node for which sequence numbers match, but payloads dont	
+
+no_seq_match_extended(Node, Seq) :-
+				history(Node, X, _, Seq),
+				uncrashed_nodes("G", Node),
+				uncrashed_nodes("G", Other),
+				Node != Other,
+				notin history(Other, X, _, Seq),            // check that seq # on all nodes match
+				X != "NoOp",								// except for writes which are marked NoOp
+				Node != "G",
+				Other != "G",
+				notin clients(Node),
+				notin clients(Other);
+
+no_term_match_extended(Node, Term) :-
+                history(Node, X, Term, Seq),
+				uncrashed_nodes("G", Node),
+				uncrashed_nodes("G", Other),
+				Node != Other,
+				notin history(Other, X, Term, Seq),            // check that term # on all nodes is equal
+				X != "NoOp",
+				Node != "G",
+				Other != "G",
+				notin clients(Node),
+				notin clients(Other);  
+
+no_payload_match_extended(Node, X1) :-
+                history(Node, X1, Term, Seq),          // check that payloads on all nodes are same
+                history(Other, X2, Term, Seq),
+                X1 != X2,
+                uncrashed_nodes("G", Node), 
+                uncrashed_nodes("G", Other), 
+                Node != Other, 
+                Node != "G", 
+                Other != "G",
+                notin clients(Node),
+                notin clients(Other);
+
