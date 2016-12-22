@@ -1,16 +1,18 @@
+
 include "group.ded";
 include "elastic_edb.ded";
 
 // At what stage are we?
 // Sequence numbers for non-concurrent writes modeled
-// Since only sequence numbers are checked and writes are dropped if sequence numbers match,
-// we discover the inconsistency in which a non-primary has an unacknowledged write of a given 
-// sequence number and therefore drops the write from primary which picks the same sequence number
-// as that of unacknowledged write, leading to an inconsistency.
+// Trim function implemented after resync operation
+// During resync after a primary crashed, we resend all the writes 
+// from the new primary to the other replicas. This is unnecessary, and
+// introducing checkpoints on the primary and replicas can help cut down 
+// on the number of writes sent out during resync. 
 
 // General comments: 
-// Queueing logic : Queuing logic has been employed in a couple of places to stagger writes and handle concurrent
-// client writes
+// Writes are no longer staggered at the replicas. Also, batching(2 per batch) of writes can be done
+// by  setting perform_batching to 1 in the edb file.
 // _sent tables are typically maintaine dso a message is not sent repeatedly even if the relation that derive it 
 // persist across time. They ensure that there is no retry at any stage.
 // "G" is a global process that has a view of system state that other process do not.
@@ -23,13 +25,13 @@ include "elastic_edb.ded";
 // Keeps track of the uncrashed nodes at every instant
 uncrashed_nodes(G, Node)@next :-
 				group(G, G),
-				in_sync(G, Node),            
+				member(G, Node),            
 				Node != G,
 				notin crash(G, Node, _);
 
 uncrashed_nodes(G, Node)@next :-
 				group(G, G),
-				in_sync(G, Node),
+				member(G, Node),
 				Node != G,
 				crash(G, Node, Time),
 				now(G, Now),
@@ -50,8 +52,8 @@ max_nodeid(G, max<Nodeid>) :-
 // Find the maximum log value on a particular node
 log_max(Node, X, max<Value>) :- log(Node, X, _, Value, _, _);
 
-term_max(Node, max<Term>) :- in_sync(Node, Node), history(Node, _, Term, _);
-seq_max(Node, max<Seq>) :- in_sync(Node, Node), term_max(Node, Term), history(Node, _, Term, Seq);
+term_max(Node, max<Term>) :- member(Node, Node), history(Node, _, Term, _);
+seq_max(Node, max<Seq>) :- member(Node, Node), term_max(Node, Term), history(Node, _, Term, Seq);
 
 // WRITE QUEUE TO PROCESS CONCURRENT WRITES
 //
@@ -112,88 +114,127 @@ write_request_seq_dequeue(Primary, Data, Origin, Value) :-
 write_request_seq_dequeue(Primary, Data, Origin, Value)@next :-
                                         write_request_seq_dequeue(Primary, Data, Origin, Value);
 
-write_request_seq_processing(Primary, Data, Origin, Value, Term,  Seq)@next :-	
+// Send global checkpoint information to the replicas
+write_request_seq_processing(Primary, Data, Origin, Value, Term,  Seq, GlobalChkPt)@next :-	
 							            write_request_seq_queue(Primary, Data, Origin, Value),
                                         min_queue_val(Primary, Value),
 							            primary(Primary, Primary),
 							            seq(Primary, Seq),
-                                        term(Primary, Term);
+                                        term(Primary, Term),
+                                        global_checkpoint(Primary, GlobalChkPt);                                  
 
 //
 // PRIMARY TO REPLICAS.
 //
 //When a write_request appears on the primary, for every other replica alive in the system, add to the "replica_write_queue".
-replica_write_queue(Primary, Data, Other, Value, Term, Seq, Nodeid) :-
-								write_request_seq_processing(Primary, Data, _, Value, Term, Seq),
-								in_sync(Primary, Other),
+replica_write_queue(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt) :-
+								write_request_seq_processing(Primary, Data, _, Value, Term, Seq, GlobalChkPt),
+								member(Primary, Other),
 								Other != Primary,
 								primary(Primary, Primary),
 								nodeid(Primary, Other, Nodeid);
+
+// Keep track of the number of requests being added to the replica_write_queue
+replica_write_queue_count(Primary, Count+1)@next :- 
+								write_request_seq_processing(Primary, _, _, _, _, _, _),
+								replica_write_queue_count(Primary, Count);	
+
+replica_write_queue_count(Primary, Count)@next :- 
+								notin write_request_seq_processing(Primary, _, _, _, _, _, _),
+								replica_write_queue_count(Primary, Count);	
+
 
 // Replica writes are staggered.
 // This is a priority queue implementation
 
 // Process the write_request with smallest value first, followed by write with smallest nodeid
 min_replica_val(Node, min<Seq>) :-
-					in_sync(Node, Node),
-					replica_write_queue(Node, _, _, _, _, Seq, _);
+					member(Node, Node),
+					replica_write_queue(Node, _, _, _, _, Seq, _, _);
 
 min_replica_val(Node, 0) :- 
-				in_sync(Node, Node),
-				notin replica_write_queue(Node, _, _, _, _, _, _);
+				member(Node, Node),
+				notin replica_write_queue(Node, _, _, _, _, _, _, _);
 
 min_replica_node( Node, min<Nodeid>) :- 
-					in_sync(Node, Node),
+					member(Node, Node),
 					min_replica_val(Node, Seq),
 					Seq != 0,
-					replica_write_queue(Node, _, _, _, _, Seq, Nodeid);
+					replica_write_queue(Node, _, _, _, _, Seq, Nodeid, _);
 
 min_replica_node( Node, 0) :- 
-				in_sync(Node, Node),
+				member(Node, Node),
 				min_replica_val(Node, Seq), Seq == 0;
 
-replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid) :- 
-								replica_write_queue(Primary, Data, Other, Value, Term, Seq, Nodeid),
-								min_replica_val(Primary, Seq),
-								primary(Primary, Primary),
-								min_replica_node(Primary, Nodeid);
+// Pick a request to send out from the queue
+replica_seq_number_to_dequeue(Primary, Node, SeqNumber) :- 
+								member(Primary, Node),
+								replica_write_queue(Primary, _, Node, _, _, _, _, _),
+								replica_seq_number_processing(Primary, Node, SeqNumber);
 
-replica_write_request_incoming(Other, Data, Primary, Value, Term, Seq, Nodeid)@async :-
-                                replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid);
+// Send out the request only when X number of writes have queued up. This is to model processing
+// requests where the sequence numbers are out of order
+
+should_perform_batching(Primary, PerformBatching) :- 
+								perform_batching(G, PerformBatching),
+								primary(G, Primary);
+
+replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt) :- 
+								replica_write_queue(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt),
+								replica_seq_number_to_dequeue(Primary, Other, Seq),
+								primary(Primary, Primary),
+								replica_write_queue_count(Primary, Count),
+								should_perform_batching(Primary, PerformBatching),
+								PerformBatching == 1,
+								Count == 2;
+
+replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt) :- 
+								replica_write_queue(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt),
+								replica_seq_number_to_dequeue(Primary, Other, Seq),
+								primary(Primary, Primary),
+								should_perform_batching(Primary, PerformBatching),
+								PerformBatching == 0;							
+
+replica_write_request_incoming(Other, Data, Primary, Value, Term, Seq, Nodeid, GlobalChkPt)@async :-
+                                replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt);
 
 // Based on the request selected for processing, dequeue appropriately. 
-replica_write_dequeue(Primary, Data, Other, Value, Term, Seq, Nodeid) :- 
-                                replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid);
+replica_write_dequeue(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt) :- 
+                                replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid, GlobalChkPt);
 
 // This rule in particular is to purge all replica writes cached when the primary node changes/fails
 //
-replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid)@next :- 
-									replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid),
+replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid, GlobalChkPt)@next :- 
+									replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid, GlobalChkPt),
 									notin primary(Node, Node),
 									notin primary_to_be(Node),
 									Node != "G";
 
-replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid)@next :- 
-                                    replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid);
+replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid, GlobalChkPt)@next :- 
+                                    replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid, GlobalChkPt);
 
 // The request queue consists all queued requests excluding the ones that have been dequeued
-replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid)@next :- 
-									replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid),
-									notin replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid);
+replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid, GlobalChkPt)@next :- 
+									replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid, GlobalChkPt),
+									notin replica_write_dequeue(Node, Data, Origin, Value, Term, Seq, Nodeid, GlobalChkPt);
 
 // NEW PRIMARY TO REPLICAS - in case of primary promotion
 // This is part of the new resync logic and therefore, takes a different processing path than regualr replica_writes
 // The following code is largely similar to the previous queue based processing logic, but the entries have some extra
 // attributes to account for the fact that we are re-syncing the older entries in a new term
 // In case of a primary promotion, all writes logged on the new primary are propagated to all in-sync replicas
+// Only send out writes whose sequence number is greater than the global checkpoint
+ 
 resync_replica_write_queue(Node, Data, Other, Value, Term, Seq, Nodeid, Primaryterm) :- 	
 								log(Node, Data, _, Value, Term, Seq),
-								in_sync(Node, Other),
+								member(Node, Other),
 								Other != Node,
 								primary_to_be(Node),
                                 resync_now(Node),
                                 term(Node, Primaryterm),
-								nodeid(Node, Other, Nodeid);
+								nodeid(Node, Other, Nodeid),
+								global_checkpoint(Node, GlobalChkPoint),
+								Seq > GlobalChkPoint;
 
 // The following logic is to couple the change in the primary term sending out the resync messages.
 // We only want to send the resync messages once the primary term has been updated.
@@ -216,33 +257,58 @@ resync_now(Node) :-
 
 primary_to_be(Node)@async :- 	
 				promote(G, Node),
-				in_sync(G, Node);
+				member(G, Node);
 
 primary_to_be(Node)@next :-
-                in_sync(Node, Node),
+                member(Node, Node),
                 primary_to_be(Node),
                 notin primary(Node, Node);
 
 // Resync Replica writes are staggered.
 // This is a priority queue implementation
 
+// The max sequence number of the write in the resync queue  of the new primary: All writes
+// with sequence number greater than this max will be trimmed on the replicas.
+max_seq_number_new_primary(Node, max<Seq>) :- resync_replica_write_queue(Node, _, _, _, _, Seq, _, _);
+
+max_seq_number_new_primary(Node, 0) :-
+					primary_to_be(Node),
+					resync_now(Node),
+					notin resync_replica_write_queue(Node, _, _, _, _, _, _, _);
+
+max_seq_number_new_primary(Node, Seq)@next :-
+					primary(Node, Node),
+					max_seq_number_new_primary(Node, Seq);
+
+
+trim(Other, Trimseq) :-
+                    resync_now(Node),
+                    primary_to_be(Node),
+                    max_seq_number_new_primary(Node, Trimseq),
+                    member(Node, Other), 
+                    Other != "G",
+                    Node != Other;
+
+// A util table to track no-op writes
+resync_replica_writes(Node, Data, Primary, Seq) :- resync_replica_write_queue(Primary, Data, Node, _, _, Seq, _, _);                 
+
 // Process the write_request with smallest value first, followed by write with smallest nodeid
 resync_min_replica_val(Node, min<Seq>) :-
-					in_sync(Node, Node),
+					member(Node, Node),
 					resync_replica_write_queue(Node, _, _, _, _, Seq, _, _);
 
 resync_min_replica_val(Node, 0) :- 
-				in_sync(Node, Node),
+				member(Node, Node),
 				notin resync_replica_write_queue(Node, _, _, _, _, _, _, _);
 
 resync_min_replica_node( Node, min<Nodeid>) :- 
-					in_sync(Node, Node),
+					member(Node, Node),
 					resync_min_replica_val(Node, Seq),
 					Seq != 0,
 					resync_replica_write_queue(Node, _, _, _, _, Seq, Nodeid, _);
 
 resync_min_replica_node( Node, 0) :- 
-				    in_sync(Node, Node),
+				    member(Node, Node),
 				    resync_min_replica_val(Node, Seq),
                     Seq == 0;
 
@@ -272,23 +338,23 @@ resync_replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid, Primary
 // While logging writes, we only process incoming requests if the term number of the request is greater than or equsl to that of the 
 // node at which the request is being processed.
 log(Node, Data, Origin, Value, Term, Seq) :- 
-                                        replica_write_request_incoming(Node, Data, Origin, Value, Term, Seq, _),
+                                        replica_write_request_incoming(Node, Data, Origin, Value, Term, Seq, _, _),
                                         term(Node, Curterm), 
                                         Curterm < Term;
 
 log(Node, Data, Origin, Value, Term, Seq) :- 
-                                        replica_write_request_incoming(Node, Data, Origin, Value, Term, Seq, _),
+                                        replica_write_request_incoming(Node, Data, Origin, Value, Term, Seq, _, _),
                                         term(Node, Curterm), 
                                         Curterm == Term;
 
 log(Node, Data, Origin, Value, Term, Seq) :- 
-                                        write_request_seq_processing(Node, Data, Origin, Value, Term, Seq),
+                                        write_request_seq_processing(Node, Data, Origin, Value, Term, Seq, _),
                                         primary(Node, Node),
                                         term(Node, Curterm),
                                         Curterm < Term;
 
 log(Node, Data, Origin, Value, Term, Seq) :- 
-                                        write_request_seq_processing(Node, Data, Origin, Value, Term, Seq),
+                                        write_request_seq_processing(Node, Data, Origin, Value, Term, Seq, _),
                                         primary(Node, Node),
                                         term(Node, Curterm),
                                         Curterm == Term;
@@ -306,27 +372,93 @@ log(Node, Data, Origin, Value, Term, Seq) :-
 log(Node, Data, Origin, Value, Term, Seq)@next :- log(Node, Data, Origin, Value, Term, Seq);
 
 //
+// UPDATE LOCAL AND GLOBAL CHECKPOINT
+//
+// The global checkpoint info is sent by the primary, update it on each replica
+// The local checkpoint on each replica is updated based on the current write received
+//
+
+// This keeps track of the greatest unbroken sequence number on each replica since the local checkpoint
+replica_unbroken_sequence(Replica, SeqNumber) :-
+							replica_unbroken_sequence(Replica, Seq),
+							log(Replica, _, _, _, _, SeqNumber),
+							local_checkpoint(Replica, LocalChkPoint),
+							SeqNumber == Seq+1,
+							Seq > LocalChkPoint-1;					
+
+// The values persist over time
+replica_unbroken_sequence_holder(Replica, Seq)@next :-
+							replica_unbroken_sequence(Replica, Seq);
+
+replica_unbroken_sequence(Replica, Seq) :-
+							member(Replica, Replica),
+							notin primary(Replica, Replica),
+							replica_unbroken_sequence_holder(Replica, Seq);							
+
+// The local checkpoint for each Replica is the max Seq calculated by the above recursive procedure
+local_checkpoint(Replica, max<Seq>) :-
+							member(Replica, Replica),
+							notin primary(Replica, Replica),
+							replica_unbroken_sequence_holder(Replica, Seq);
+
+// The global checkpoint info is received by the primary, and updated on the replicas
+global_checkpoint(Replica, GlobalChkPt)@next :- 
+							member(Replica, Replica),
+							notin primary(Replica, Replica),
+							replica_write_request_incoming(Replica, Data, Origin, Value, Term, Seq, _, GlobalChkPt);
+
+global_checkpoint(Replica, GlobalChkPt)@next :-
+							global_checkpoint(Replica, GlobalChkPt),
+							notin primary(Replica, Replica),
+							notin replica_write_request_incoming(Replica, Data, Origin, Value, Term, Seq, _, _);
+
+//
 // ACKNOWLEDGEMENT LOGIC
 //
 // As soon as a replica_write is received from primary, it is acknowledged.
 // Any write_request that is received but ignored due to an older term# is not acknowledged
-replica_write_response_outgoing(Origin, Data, Replica, Value, Term, Seq)@async :- 	
-							replica_write_request_incoming(Replica, Data, Origin, Value, Term, Seq, _),
+//							
+
+replica_write_response_outgoing(Origin, Data, Replica, Value, Term, Seq, ChkPoint)@async :- 	
+							replica_write_request_incoming(Replica, Data, Origin, Value, Term, Seq, _, _),
+							local_checkpoint(Replica, ChkPoint),
                             term(Node, Curterm),
                             Curterm < Term;
 
-replica_write_response_outgoing(Origin, Data, Replica, Value, Term, Seq)@async :- 	
-							replica_write_request_incoming(Replica, Data, Origin, Value, Term, Seq, _),
+replica_write_response_outgoing(Origin, Data, Replica, Value, Term, Seq, ChkPoint)@async :- 	
+							replica_write_request_incoming(Replica, Data, Origin, Value, Term, Seq, _, _),
+							local_checkpoint(Replica, ChkPoint),
                             term(Node, Curterm),
                             Curterm == Term;
 
 ack_int(Origin, Data, Replica, Value, Term, Seq)@next :-
-                            replica_write_response_outgoing(Origin, Data, Replica, Value, Term, Seq);
+                            replica_write_response_outgoing(Origin, Data, Replica, Value, Term, Seq, _);
+
+// Each replica sends its local checkpoint info to the primary, and this info is used  by 
+// primary to calculate the global checkpoint
+replica_checkpoint_info(Primary, Node, ChkPoint)@next :-
+						member(Primary, Node),
+						primary(Primary, Primary),                // Add this only if the Primary has not crashed
+						replica_write_response_outgoing(Primary, _, Node, _, _, _, ChkPoint);				
+
+replica_checkpoint_info(Primary, Node, ChkPoint)@next :-
+						replica_checkpoint_info(Primary, Node, ChkPoint),
+						primary(Primary, Primary),                             // maintain this info only if the primary has not crashed
+						notin replica_write_response_outgoing(Primary, _, Node, _, _, _, _);
+
+lowest_local_checkpoint(Primary, min<ChkPoint>) :-
+                        	replica_checkpoint_info(Primary, Node, ChkPoint);
+
+// The global checkpoint is the minimum of all local checkpoints
+global_checkpoint(Node, GlobalChkPt) :-
+				primary(Node, Node),
+				lowest_local_checkpoint(Node, GlobalChkPt);
+
 
 // Before a primary can acknowledge a write, it must receive acknowledgements from all replicas. The following 3 rules ensure the same.
 missing_ack(Primary, Data, Other, Value, Term, Seq) :- 	
 							log(Primary, Data, _, Value, Term, Seq),
-							in_sync(Primary, Other),
+							member(Primary, Other),
 							Primary != Other,
 							notin ack_int(Primary, Data, Other, Value, Term, Seq);
 
@@ -378,24 +510,24 @@ seq(Primary, Seq)@next :-
 
 // If the incoming write request has a term# >= Current term# on the node, the request is logged.
 history(Node, Data, Term, Seq) :-
-                write_request_seq_processing(Node, Data, _, _, Term, Seq),
+                write_request_seq_processing(Node, Data, _, _, Term, Seq, _),
                 primary(Node, Node),
                 term(Node, Curterm),
                 Curterm < Term;
 
 history(Node, Data, Term, Seq) :-
-                write_request_seq_processing(Node, Data, _, _, Term, Seq),
+                write_request_seq_processing(Node, Data, _, _, Term, Seq, _),
                 primary(Node, Node),
                 term(Node, Curterm),
                 Curterm == Term;
 
 history(Node, Data, Term, Seq) :-
-                replica_write_request_incoming(Node, Data, _, _, Term, Seq, _),
+                replica_write_request_incoming(Node, Data, _, _, Term, Seq, _, _),
                 term(Node, Curterm),
                 Curterm < Term;
 
 history(Node, Data, Term, Seq) :-
-                replica_write_request_incoming(Node, Data, _, _, Term, Seq, _),
+                replica_write_request_incoming(Node, Data, _, _, Term, Seq, _, _),
                 term(Node, Curterm),
                 Curterm == Term;
 
@@ -416,39 +548,61 @@ history(Node, Data, Term, Seq) :-
 // History persists across time
 history(Node, Data, Term, Seq)@next :- 
                         history(Node, Data, Term, Seq),
-                        notin erase_history(Node, Data, Term, Seq);
+                        notin erase_history(Node, Data, Term, Seq),
+                        notin set_noop_history(Node, Data, Term, Seq);
 
-// Keep track of highest sequence numbers
-highest_history_seq(Node, max<Seq>) :-
-                        in_sync(Node, Node),
-                        history(Node, _, _, Seq);
+history(Node, "NoOp", Term, Seq)@next :-
+						history(Node, Data, Term, Seq),
+						set_noop_history(Node, Data, Term, Seq);
 
-highest_history_seq(Node, 0) :-
-                        in_sync(Node, Node),
-                        notin history(Node, _, _, _);
-
-unbroken_seq(Node, Seq1)@next :-
-                    unbroken_seq(Node, Seq1),
-                    highest_history_seq(Node, Seq2),
-                    Seq2 != Seq1 + 1;
-
-unbroken_seq(Node, Seq2)@next :-
-                    unbroken_seq(Node, Seq1),
-                    highest_history_seq(Node, Seq2),
-                    Seq2 == Seq1 + 1;
-
-trim(Other, Trimseq) :-
-                    resync_now(Node),
-                    primary_to_be(Node),
-                    unbroken_seq(Node, Trimseq),
-                    in_sync(Node, Other), 
-                    Other != "G",
-                    Node != Other;
-
+// Trim history in replicas - remove seq numbers greater than the max seq number in the new primary
 erase_history(Node, Data, Term, Seq) :-
                     history(Node, Data, Term, Seq),
                     trim(Node, Trimseq),
                     Seq > Trimseq;
 
 erase_history(Node, Data, Term, Seq)@next :-
-                    erase_history(Node, Data, Term, Seq);
+                    erase_history(Node, Data, Term, Seq);                    
+
+resync_global_checkpoint_holder(Node, Primary, GlobalChkPt) :- 
+					resync_replica_write_queue(Primary, _, Node, _, _, _, _, _), 
+					global_checkpoint(Primary, GlobalChkPt);
+
+// Mark the replica writes which are not present on the new primary as 'NoOp'
+set_noop_history(Node, Data, Term, Seq) :-
+					member(Node, Node),
+					history(Node, Data, Term, Seq),
+					resync_global_checkpoint_holder(Node, Primary, GlobalChkPt),
+					notin resync_replica_writes(Node, _, Primary, Seq),
+					Seq > GlobalChkPt,
+					Node != Primary;
+
+set_noop_history(Node, Data, Term, Seq)@next :-
+                    set_noop_history(Node, Data, Term, Seq);
+
+
+// After resyncing operation, set the global checkpoint as the max sequence number of the new primary
+global_checkpoint(Node, Seq) :-
+				primary(Node, Node),
+				max_seq_number_new_primary(Node, Seq),
+				history(Node, _, _, Seq),                                          // max sequence number is in history
+				resync_replica_write_dequeue(Node, _, _, _, _, Seq, _, _),
+				notin resync_replica_write_queue(Node, _, _, _, _, Seq, _, _);     // This sequence number has been processed
+
+// Set the local checkpoint for each replica to the global checkpoint if it is lower
+// Its possible that the replica has a lower checkpoint than the global checkpoint 
+// after a resync operation, if the replica has gaps in the sequence
+// For example at the beginning of resync, "a" : Data1, -, -   "b" : -, -, Data3 
+// After resync, "a" : NoOp, -, Data3    "b" : -, -, Data3
+// Global checkpoint : 3, Local checkpoint of "a" : 1 - This may never be reset on its own since
+// seq number 2 may never be filled in, in which case the highest unbroken seq number will be 1
+
+replica_unbroken_sequence_holder(Replica, Seq) :- 
+				global_checkpoint(Primary, Seq),
+				max_seq_number_new_primary(Primary, Seq),
+				primary(Primary, Primary),
+				member(Primary, Replica),
+				Replica != Primary;
+
+
+
