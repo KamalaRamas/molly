@@ -3,17 +3,17 @@
 // is maintained as is.
 view_change(G, M)@next :-	
 				group(G, G),
-				member(G, M),
+				in_sync(G, M),
 				now(G, Now),
 				crash(G, Other, Time),
 				Now == Time,
 				notin crash(G, M, Time);
 
-member(G, M)@next :-		view_change(G, M);
+in_sync(G, M)@next :-		view_change(G, M);
 
-member(G, M)@next :- 		
+in_sync(G, M)@next :- 		
 				group(G, G),
-				member(G, M),
+				in_sync(G, M),
 				notin view_change(G, _);
 
 // view_change_message is the mechanism in which non-global processes learn about changes to the
@@ -30,10 +30,10 @@ view_change_message(C, M)@async :-
 					view_change(G, M),
 					client(G, C);
 
-member(M, N)@next :-	view_change_message(M, N);
+in_sync(M, N)@next :-	view_change_message(M, N);
 
-member(M, N)@next :-			
-			member(M, N),
+in_sync(M, N)@next :-			
+			in_sync(M, N),
 			M != "G",
 			notin view_change_message(M, _);
 
@@ -105,12 +105,12 @@ client(G, C)@next :-
 
 client_known(M, C) :- 	
 			clients(C),
-			member(C, M),
+			in_sync(C, M),
 			notin client_known_reg(C, M);
 
 client_known_reg(C, M)@next :- 	
 				clients(C),
-				member(C, M);
+				in_sync(C, M);
 
 client_known(M, C)@next :- 	
 				client_known(M, C),
@@ -122,12 +122,12 @@ client_known(M, C)@next :-
 				now(G, Now),
 				Now < Time;
 
-// Primry promotion, with the node with the max nodieid being promoted.
+// Primry promotion, with the node with the lowers nodieid being promoted.
 // This is the reverse order to the order in which staggered replica 
 // writes are propagated.
 promote(G, Node) :-	
 			group(G, G),
-			max_nodeid(G, Nodeid),              // max_nodeid is used to promote processes in the 
+			min_nodeid(G, Nodeid),              // min_nodeid is used to promote processes in the 
 			nodeid(G, Node, Nodeid),            // reverse order that replica_writes are staggered
 			primary(G, Primary),
 			Primary !=Node,
@@ -135,7 +135,7 @@ promote(G, Node) :-
 
 promote(G, Node) :- 	
 			group(G, G),
-			max_nodeid(G, Nodeid),
+			min_nodeid(G, Nodeid),
 			nodeid(G, Node, Nodeid),
 			notin primary(G, Node),
             notin promoted(G, Node);

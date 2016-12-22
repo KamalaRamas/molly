@@ -23,13 +23,13 @@ include "elastic_edb.ded";
 // Keeps track of the uncrashed nodes at every instant
 uncrashed_nodes(G, Node)@next :-
 				group(G, G),
-				member(G, Node),            
+				in_sync(G, Node),            
 				Node != G,
 				notin crash(G, Node, _);
 
 uncrashed_nodes(G, Node)@next :-
 				group(G, G),
-				member(G, Node),
+				in_sync(G, Node),
 				Node != G,
 				crash(G, Node, Time),
 				now(G, Now),
@@ -50,8 +50,8 @@ max_nodeid(G, max<Nodeid>) :-
 // Find the maximum log value on a particular node
 log_max(Node, X, max<Value>) :- log(Node, X, _, Value, _, _);
 
-term_max(Node, max<Term>) :- member(Node, Node), history(Node, _, Term, _);
-seq_max(Node, max<Seq>) :- member(Node, Node), term_max(Node, Term), history(Node, _, Term, Seq);
+term_max(Node, max<Term>) :- in_sync(Node, Node), history(Node, _, Term, _);
+seq_max(Node, max<Seq>) :- in_sync(Node, Node), term_max(Node, Term), history(Node, _, Term, Seq);
 
 // WRITE QUEUE TO PROCESS CONCURRENT WRITES
 //
@@ -125,7 +125,7 @@ write_request_seq_processing(Primary, Data, Origin, Value, Term,  Seq)@next :-
 //When a write_request appears on the primary, for every other replica alive in the system, add to the "replica_write_queue".
 replica_write_queue(Primary, Data, Other, Value, Term, Seq, Nodeid) :-
 								write_request_seq_processing(Primary, Data, _, Value, Term, Seq),
-								member(Primary, Other),
+								in_sync(Primary, Other),
 								Other != Primary,
 								primary(Primary, Primary),
 								nodeid(Primary, Other, Nodeid);
@@ -135,21 +135,21 @@ replica_write_queue(Primary, Data, Other, Value, Term, Seq, Nodeid) :-
 
 // Process the write_request with smallest value first, followed by write with smallest nodeid
 min_replica_val(Node, min<Seq>) :-
-					member(Node, Node),
+					in_sync(Node, Node),
 					replica_write_queue(Node, _, _, _, _, Seq, _);
 
 min_replica_val(Node, 0) :- 
-				member(Node, Node),
+				in_sync(Node, Node),
 				notin replica_write_queue(Node, _, _, _, _, _, _);
 
 min_replica_node( Node, min<Nodeid>) :- 
-					member(Node, Node),
+					in_sync(Node, Node),
 					min_replica_val(Node, Seq),
 					Seq != 0,
 					replica_write_queue(Node, _, _, _, _, Seq, Nodeid);
 
 min_replica_node( Node, 0) :- 
-				member(Node, Node),
+				in_sync(Node, Node),
 				min_replica_val(Node, Seq), Seq == 0;
 
 replica_write_request_outgoing(Primary, Data, Other, Value, Term, Seq, Nodeid) :- 
@@ -188,7 +188,7 @@ replica_write_queue(Node, Data, Origin, Value, Term, Seq, Nodeid)@next :-
 // In case of a primary promotion, all writes logged on the new primary are propagated to all in-sync replicas
 resync_replica_write_queue(Node, Data, Other, Value, Term, Seq, Nodeid, Primaryterm) :- 	
 								log(Node, Data, _, Value, Term, Seq),
-								member(Node, Other),
+								in_sync(Node, Other),
 								Other != Node,
 								primary_to_be(Node),
                                 resync_now(Node),
@@ -216,10 +216,10 @@ resync_now(Node) :-
 
 primary_to_be(Node)@async :- 	
 				promote(G, Node),
-				member(G, Node);
+				in_sync(G, Node);
 
 primary_to_be(Node)@next :-
-                member(Node, Node),
+                in_sync(Node, Node),
                 primary_to_be(Node),
                 notin primary(Node, Node);
 
@@ -228,21 +228,21 @@ primary_to_be(Node)@next :-
 
 // Process the write_request with smallest value first, followed by write with smallest nodeid
 resync_min_replica_val(Node, min<Seq>) :-
-					member(Node, Node),
+					in_sync(Node, Node),
 					resync_replica_write_queue(Node, _, _, _, _, Seq, _, _);
 
 resync_min_replica_val(Node, 0) :- 
-				member(Node, Node),
+				in_sync(Node, Node),
 				notin resync_replica_write_queue(Node, _, _, _, _, _, _, _);
 
 resync_min_replica_node( Node, min<Nodeid>) :- 
-					member(Node, Node),
+					in_sync(Node, Node),
 					resync_min_replica_val(Node, Seq),
 					Seq != 0,
 					resync_replica_write_queue(Node, _, _, _, _, Seq, Nodeid, _);
 
 resync_min_replica_node( Node, 0) :- 
-				    member(Node, Node),
+				    in_sync(Node, Node),
 				    resync_min_replica_val(Node, Seq),
                     Seq == 0;
 
@@ -326,7 +326,7 @@ ack_int(Origin, Data, Replica, Value, Term, Seq)@next :-
 // Before a primary can acknowledge a write, it must receive acknowledgements from all replicas. The following 3 rules ensure the same.
 missing_ack(Primary, Data, Other, Value, Term, Seq) :- 	
 							log(Primary, Data, _, Value, Term, Seq),
-							member(Primary, Other),
+							in_sync(Primary, Other),
 							Primary != Other,
 							notin ack_int(Primary, Data, Other, Value, Term, Seq);
 
@@ -420,11 +420,11 @@ history(Node, Data, Term, Seq)@next :-
 
 // Keep track of highest sequence numbers
 highest_history_seq(Node, max<Seq>) :-
-                        member(Node, Node),
+                        in_sync(Node, Node),
                         history(Node, _, _, Seq);
 
 highest_history_seq(Node, 0) :-
-                        member(Node, Node),
+                        in_sync(Node, Node),
                         notin history(Node, _, _, _);
 
 unbroken_seq(Node, Seq1)@next :-
@@ -441,7 +441,7 @@ trim(Other, Trimseq) :-
                     resync_now(Node),
                     primary_to_be(Node),
                     unbroken_seq(Node, Trimseq),
-                    member(Node, Other), 
+                    in_sync(Node, Other), 
                     Other != "G",
                     Node != Other;
 

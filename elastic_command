@@ -1,7 +1,7 @@
 sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker \
     src/test/resources/examples_ft/elastic_search/elastic_search_with_seq.ded \
     src/test/resources/examples_ft/elastic_search/elastic_assert.ded \
-    --EOT 15 \
+    --EOT 17 \
     --EFF 0 \
-    --nodes a,C,c,G,b \
+    --nodes C,n1,n2,n3,M \
     --crashes 1"
