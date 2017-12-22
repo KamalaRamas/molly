@@ -119,7 +119,7 @@ client_known(M, C)@next :-
 client_known(M, C)@next :-
 				client_known(M, C),
 				crash(M, C, Time),
-				now(G, Now),
+				now(M, Now),
 				Now < Time;
 
 // Primry promotion, with the node with the max nodieid being promoted.

@@ -97,7 +97,7 @@ chain_ack_sent(Acker, Data, Origin, Value)@next :- primary(Acker, Acker), log(Ac
 
 // Acknowledgement retrace the forwarding path of the write request
 chain_ack(Origin, Data, Acker, Value)@async :- log(Acker, Data, _, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker), send_ack_to(Acker, Origin, Value), notin chain_ack_sent(Acker, Data, Origin, Value);
-chain_ack_sent(Acker, Data, Origin, Value)@next :- log(Acker, Data, _, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker), send_ack_to(Ackr, Origin, Value);
+chain_ack_sent(Acker, Data, Origin, Value)@next :- log(Acker, Data, _, Value), chain_ack(Acker, Data, _, Value), notin primary(Acker, Acker), send_ack_to(Acker, Origin, Value);
 
 // Acknowledgements persist across time. If a chain_ack is received at a client, the write is acknowledged.
 ack(Origin, Data, Acker, Value) :- chain_ack(Origin, Data, Acker, Value), clients(Origin); 

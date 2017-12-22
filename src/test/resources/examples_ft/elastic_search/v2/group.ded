@@ -33,7 +33,7 @@ client(G, C)@next :- client(G, C), crash(G, C, Time), now(G, Now), Now < Time;
 client_known(M, C) :- clients(C), member(C, M), notin client_known_reg(C, M);
 client_known_reg(C, M)@next :- clients(C), member(C, M);
 client_known(M, C)@next :- client_known(M, C), notin crash(M, C, _);
-client_known(M, C)@next :- client_known(M, C), crash(M, C, Time), now(G, Now), Now < Time;
+client_known(M, C)@next :- client_known(M, C), crash(M, C, Time), now(M, Now), Now < Time;
 
 // Primry promotion, with the node with the max nodieid being promoted.
 // This is the reverse order to the order in which staggered replica 
