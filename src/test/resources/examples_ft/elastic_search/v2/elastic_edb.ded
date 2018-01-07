@@ -6,7 +6,6 @@ group("c", "G")@1;
 group("C", "G")@1;
 group("G", "G")@1;
 group(M, G)@next :- group(M, G);
-group(M, "G") :- cchange(M, "A", "G"), notin group(M, "G");
 
 begin("a")@1;
 begin("b")@1;
