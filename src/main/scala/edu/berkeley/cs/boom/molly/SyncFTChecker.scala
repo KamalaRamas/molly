@@ -7,12 +7,11 @@ import com.typesafe.scalalogging.LazyLogging
 import edu.berkeley.cs.boom.molly.DedalusRewrites._
 import edu.berkeley.cs.boom.molly.DedalusParser._
 import edu.berkeley.cs.boom.molly.report.HTMLWriter
-import com.codahale.metrics.{Slf4jReporter, MetricRegistry}
+import com.codahale.metrics.{ Slf4jReporter, MetricRegistry }
 import java.util.concurrent.TimeUnit
 import scalaz.syntax.id._
 import scalaz.EphemeralStream
-import edu.berkeley.cs.boom.molly.derivations.{SAT4JSolver, Z3Solver}
-
+import edu.berkeley.cs.boom.molly.derivations.{ SAT4JSolver, Z3Solver }
 
 case class Config(
   eot: Int = 3,
@@ -28,24 +27,23 @@ case class Config(
   disableDotRendering: Boolean = false,
   findAllCounterexamples: Boolean = false,
   negativeSupport: Boolean = true,
-  maxRuns: Int = Int.MaxValue
-)
+  maxRuns: Int = Int.MaxValue)
 
 object SyncFTChecker extends LazyLogging {
   val parser = new scopt.OptionParser[Config]("syncftChecker") {
     head("syncftchecker", "0.1")
-    opt[Int]('t', "EOT") text "end of time (default 3)" action { (x, c) => c.copy(eot = x)}
-    opt[Int]('f', "EFF") text "end of finite failures (default 2)" action { (x, c) => c.copy(eff = x)}
-    opt[Int]('c', "crashes") text "crash failures (default 0)" action { (x, c) => c.copy(crashes = x)}
-    opt[String]('N', "nodes") text "a comma-separated list of nodes (required)" required() action { (x, c) => c.copy(nodes = x.split(','))}
-    opt[String]("solver") text "the solver to use ('z3' or 'sat4j' or 'ilp')" action { (x, c) => c.copy(solver = x)} validate { x => if (x != "z3" && x != "sat4j" && x != "ilp") failure("solver should be 'z3' or 'sat4j' or 'ilp'") else success }
-    opt[String]("strategy") text "the search strategy ('sat', 'random' or 'pcausal')" action { (x, c) => c.copy(strategy = x)} validate { x => if (x != "sat" && x != "random" && x != "pcausal") failure("strategy should be 'sat', 'random', or 'pcausal'") else success }
+    opt[Int]('t', "EOT") text "end of time (default 3)" action { (x, c) => c.copy(eot = x) }
+    opt[Int]('f', "EFF") text "end of finite failures (default 2)" action { (x, c) => c.copy(eff = x) }
+    opt[Int]('c', "crashes") text "crash failures (default 0)" action { (x, c) => c.copy(crashes = x) }
+    opt[String]('N', "nodes") text "a comma-separated list of nodes (required)" required () action { (x, c) => c.copy(nodes = x.split(',')) }
+    opt[String]("solver") text "the solver to use ('z3' or 'sat4j' or 'ilp')" action { (x, c) => c.copy(solver = x) } validate { x => if (x != "z3" && x != "sat4j" && x != "ilp") failure("solver should be 'z3' or 'sat4j' or 'ilp'") else success }
+    opt[String]("strategy") text "the search strategy ('sat', 'random' or 'pcausal')" action { (x, c) => c.copy(strategy = x) } validate { x => if (x != "sat" && x != "random" && x != "pcausal") failure("strategy should be 'sat', 'random', or 'pcausal'") else success }
     opt[Unit]("use-symmetry") text "use symmetry to skip equivalent failure scenarios" action { (x, c) => c.copy(useSymmetry = true) }
     opt[Unit]("prov-diagrams") text "generate provenance diagrams for each execution" action { (x, c) => c.copy(generateProvenanceDiagrams = true) }
     opt[Unit]("disable-dot-rendering") text "disable automatic rendering of `dot` diagrams" action { (x, c) => c.copy(disableDotRendering = true) }
     opt[Unit]("find-all-counterexamples") text "continue after finding the first counterexample" action { (x, c) => c.copy(findAllCounterexamples = true) }
-    opt[Unit]("negative-support") text "Negative support.  Slow, but necessary for completeness" action {(x, c) => c.copy(negativeSupport =  true) }
-    arg[File]("<file>...") unbounded() minOccurs 1 text "Dedalus files" action { (x, c) => c.copy(inputPrograms = c.inputPrograms :+ x)}
+    opt[Unit]("negative-support") text "Negative support.  Slow, but necessary for completeness" action { (x, c) => c.copy(negativeSupport = true) }
+    arg[File]("<file>...") unbounded () minOccurs 1 text "Dedalus files" action { (x, c) => c.copy(inputPrograms = c.inputPrograms :+ x) }
   }
 
   /**
@@ -100,24 +98,33 @@ object SyncFTChecker extends LazyLogging {
       .build()
 
     parser.parse(args, Config()) map { config =>
+
       // Kind of a hack to tee an ephemeral stream
       var firstCounterExample: FailureSpec = null
-      val results = check(config, metrics).map { case r =>
-        if (firstCounterExample == null && r.status == RunStatus("failure"))
-          firstCounterExample = r.failureSpec
-        r
+      val results = check(config, metrics).map {
+        case r =>
+          if (firstCounterExample == null && r.status == RunStatus("failure"))
+            firstCounterExample = r.failureSpec
+          r
       }
-      // TODO: name the output directory after the input filename and failure spec.
-      HTMLWriter.write(new File("output"), Nil, results, config.generateProvenanceDiagrams,
-        config.disableDotRendering)
+
+      val curTimestamp: Long = System.currentTimeMillis / 1000
+      val inputProgs = config.inputPrograms.map(prog => prog.getName()).addString(new StringBuilder(), "_").toString().replace('.', '_')
+      val nodesString = config.nodes.mkString("_")
+      val outputDir = s"output/${curTimestamp}_${inputProgs}_t${config.eot}_f${config.eff}_c${config.crashes}_N${nodesString}"
+
+      HTMLWriter.write(new File(outputDir), Nil, results, config.generateProvenanceDiagrams, config.disableDotRendering)
+
       println("-" * 80)
-      metricsReporter.report()  // This appears after the HTML writing due to laziness
+      metricsReporter.report() // This appears after the HTML writing due to laziness
       println("-" * 80)
+
       firstCounterExample match {
         case null => println("No counterexamples found".green)
         case fs: FailureSpec =>
           println(s"Found counterexamples; first is:\n${fs.crashes ++ fs.omissions}".red)
       }
+
     } getOrElse {
       // Error messages
     }

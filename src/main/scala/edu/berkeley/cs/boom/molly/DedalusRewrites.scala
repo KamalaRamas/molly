@@ -23,7 +23,7 @@ object DedalusRewrites {
       pred.copy(cols = pred.cols :+ col)
 
     def rewriteHead(pred: Predicate, time: Time): Predicate = time match {
-      case Next()  => appendCol(Expr(nreserved, "+", IntLiteral(1)))(pred)
+      case Next() => appendCol(Expr(nreserved, "+", IntLiteral(1)))(pred)
       case Async() => appendCol(mreserved)(pred)
       case Tick(t) => appendCol(IntLiteral(t))(pred)
     }
@@ -74,7 +74,7 @@ object DedalusRewrites {
   }
 
   private def splitAggregateRule(rule: Rule): Seq[Rule] = {
-    assert (!rule.head.aggregateVariables.isEmpty, "Expected rule with aggregation")
+    assert(!rule.head.aggregateVariables.isEmpty, "Expected rule with aggregation")
     val ruleSansAgg =
       rule.copy(head = rule.head.copy(cols = rule.head.cols.filterNot(_.isInstanceOf[Aggregate])))
     val varsRule = recordAllVariableBindings(ruleSansAgg, ruleSansAgg.head.tableName + "_vars")
@@ -117,8 +117,9 @@ object DedalusRewrites {
    * Add rules and rewrite rule bodies to record provenance.
    */
   def addProvenanceRules(program: Program): Program = {
-    val provenanceRules = program.rules.zipWithIndex.map { case (rule, number) =>
-      recordBoundVariables(rule, rule.head.tableName + "_prov" + number)
+    val provenanceRules = program.rules.zipWithIndex.map {
+      case (rule, number) =>
+        recordBoundVariables(rule, rule.head.tableName + "_prov" + number)
     }
     program.copy(rules = program.rules ++ provenanceRules)
   }

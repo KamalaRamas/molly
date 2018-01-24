@@ -27,9 +27,10 @@ import DedalusType._
  */
 object DedalusTyper {
 
-  private type ColRef = (String, Int)  // (tableName, columnNumber) pairs
+  private type ColRef = (String, Int) // (tableName, columnNumber) pairs
 
   private def inferTypeOfAtom(atom: Atom): DedalusType = {
+
     atom match {
       case StringLiteral(_) => STRING
       case IntLiteral(_) => INT
@@ -40,6 +41,7 @@ object DedalusTyper {
   }
 
   private def dom(types: Set[(Atom, DedalusType)]): Set[(Atom, DedalusType)] = {
+
     if (types.map(_._2) == Set(STRING, LOCATION)) {
       types.filter(_._2 == LOCATION)
     } else {
@@ -56,13 +58,15 @@ object DedalusTyper {
    * @return a copy of the program with its `tables` field filled in.
    */
   def inferTypes(program: Program): Program = {
-    require (program.tables.isEmpty, "Program is already typed!")
-    val allPredicates = program.facts ++ program.rules.map(_.head) ++
-      program.rules.flatMap(_.bodyPredicates)
+
+    require(program.tables.isEmpty, "Program is already typed!")
+
+    val allPredicates = program.facts ++ program.rules.map(_.head) ++ program.rules.flatMap(_.bodyPredicates)
+
     val mostColRefs = for (
       pred <- allPredicates;
       (col, colNum) <- pred.cols.zipWithIndex
-    ) yield (pred.tableName, colNum) 
+    ) yield (pred.tableName, colNum)
 
     val allColRefs = mostColRefs ++ Seq(
       ("crash", 0),
@@ -103,6 +107,7 @@ object DedalusTyper {
     // Accumulate all type evidence.  To provide useful error messages when we find conflicting
     // evidence, we store the provenance of this evidence (the Atom
     val typeEvidence: Map[ColRef, Set[(Atom, DedalusType)]] = {
+
       // Some meta-EDB tables might be empty in certain runs (such as crash()), so we need to
       // hard-code their type evidence:
       val metaEDBTypes = Seq(
@@ -115,17 +120,18 @@ object DedalusTyper {
         (colRefToMinColRef.find(("clock", 2)), (null, INT)),
         (colRefToMinColRef.find(("clock", 3)), (null, INT))
       )
+
       val firstColumnTypeIsLocation = for (
         pred <- allPredicates;
-        (col, colNum) <- pred.cols.zipWithIndex
-        if colNum == 0
+        (col, colNum) <- pred.cols.zipWithIndex if colNum == 0
       ) yield (colRefToMinColRef.find((pred.tableName, colNum)), (col, LOCATION))
+
       val inferredFromPredicates = for (
         pred <- allPredicates;
         (col, colNum) <- pred.cols.zipWithIndex;
-        inferredType = inferTypeOfAtom(col)
-        if inferredType != UNKNOWN
+        inferredType = inferTypeOfAtom(col) if inferredType != UNKNOWN
       ) yield (colRefToMinColRef.find((pred.tableName, colNum)), (col, inferredType))
+
       val evidence = inferredFromPredicates ++ metaEDBTypes ++ firstColumnTypeIsLocation
       evidence.groupBy(_._1).mapValues(_.map(_._2).toSet)
     }
@@ -139,27 +145,29 @@ object DedalusTyper {
     } + ("clock" -> 4) + ("crash" -> 4)
 
     // Assign types to each group of columns:
-    val tableNames = allPredicates.map(_.tableName).toSet  ++ Set("crash", "clock")
+    val tableNames = allPredicates.map(_.tableName).toSet ++ Set("crash", "clock")
     val tables = tableNames.map { tableName =>
+
       val numCols = numColsInTable(tableName)
+
       val colTypes = (0 to numCols - 1).map { colNum =>
+
         val representative = colRefToMinColRef.find((tableName, colNum))
-        val types = dom(typeEvidence.getOrElse(representative,
-          throw new Exception(
-            s"No evidence for type of column ${representative._2} of ${representative._1}")))
+        val types = dom(typeEvidence.getOrElse(representative, throw new Exception(s"No evidence for type of column ${representative._2} of ${representative._1}")))
+
         assert(types.map(_._2).size == 1, {
           val evidenceByType = types.groupBy(_._2)
-          val headPosition =
-            Positions.getStart(allPredicates.filter(_.tableName == tableName).head.cols(colNum))
+          val headPosition = Positions.getStart(allPredicates.filter(_.tableName == tableName).head.cols(colNum))
           s"Conflicting evidence for type of column $colNum of $tableName:\n\n" +
-          headPosition.longString + "\n---------------------------------------------\n" +
-          evidenceByType.map { case (inferredType, evidence) =>
-            val evidenceLocations = for ((atom, _) <- evidence) yield {
-              if (atom != null) Positions.getStart(atom).longString
-              else "unification with meta EDB column"
-            }
-            s"Evidence for type $inferredType:\n\n" +  evidenceLocations.mkString("\n")
-          }.mkString("\n---------------------------------------------\n")
+            headPosition.longString + "\n---------------------------------------------\n" +
+            evidenceByType.map {
+              case (inferredType, evidence) =>
+                val evidenceLocations = for ((atom, _) <- evidence) yield {
+                  if (atom != null) Positions.getStart(atom).longString
+                  else "unification with meta EDB column"
+                }
+                s"Evidence for type $inferredType:\n\n" + evidenceLocations.mkString("\n")
+            }.mkString("\n---------------------------------------------\n")
         })
         types.head._2
       }

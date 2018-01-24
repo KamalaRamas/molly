@@ -31,21 +31,21 @@ object DedalusParser extends PositionedParserUtilities {
   // Define a bunch of constants / building blocks that will be used by later rules
   lazy val ident = "[a-zA-Z0-9._?@]+".r
   lazy val semi = ";"
-  lazy val number = "[0-9]+".r ^^ { s => s.toInt}
-  lazy val string = "\"[^\"]*\"".r ^^ { s => s.stripPrefix("\"").stripSuffix("\"")}
+  lazy val number = "[0-9]+".r ^^ { s => s.toInt }
+  lazy val string = "\"[^\"]*\"".r ^^ { s => s.stripPrefix("\"").stripSuffix("\"") }
   lazy val followsfrom = ":-"
   lazy val timesuffix: Parser[Time] =
-    "@next" ^^ { _  => Next() } |
-    "@async" ^^ { _ => Async() } |
-    '@' ~> number ^^ Tick
+    "@next" ^^ { _ => Next() } |
+      "@async" ^^ { _ => Async() } |
+      '@' ~> number ^^ Tick
   lazy val op = "==" | "!=" | "+" | "-" | "/" | "*" | "<" | ">" | "<=" | ">="
 
   // Define the language of expressions that can appear in rule bodies
   lazy val constant: Parser[Constant] =
     string ^^ StringLiteral |
-    number ^^ IntLiteral |
-    ident ^^ Identifier
-  lazy val expr: Parser[Expr] = constant ~ op ~ exprOrConstant ^^ { case c ~ o ~ e => Expr(c, o, e)}
+      number ^^ IntLiteral |
+      ident ^^ Identifier
+  lazy val expr: Parser[Expr] = constant ~ op ~ exprOrConstant ^^ { case c ~ o ~ e => Expr(c, o, e) }
   lazy val exprOrConstant: Parser[Expression] = expr | constant
   lazy val aggregate = ident ~ "<" ~ ident ~ ">" ^^ {
     case aggName ~ "<" ~ aggCol ~ ">" => Aggregate(aggName, aggCol)

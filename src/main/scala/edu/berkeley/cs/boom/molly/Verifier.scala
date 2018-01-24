@@ -11,7 +11,7 @@ import scalaz._
 
 import edu.berkeley.cs.boom.molly.ast.Program
 import edu.berkeley.cs.boom.molly.derivations._
-import edu.berkeley.cs.boom.molly.symmetry.{SymmetryChecker, SymmetryAwareSet}
+import edu.berkeley.cs.boom.molly.symmetry.{ SymmetryChecker, SymmetryAwareSet }
 import edu.berkeley.cs.boom.molly.wrappers.C4Wrapper
 
 case class RunStatus(underlying: String) extends AnyVal
@@ -53,10 +53,9 @@ class Verifier(
   failureSpec: FailureSpec,
   program: Program,
   solver: Solver = Z3Solver,
-  causalOnly: Boolean  = false,
+  causalOnly: Boolean = false,
   useSymmetry: Boolean = false,
-  negativeSupport: Boolean = false
-)(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
+  negativeSupport: Boolean = false)(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
 
   private val failureFreeSpec = failureSpec.copy(eff = 0, maxCrashes = 0)
   private val failureFreeProgram = DedalusTyper.inferTypes(failureFreeSpec.addClockFacts(program))
@@ -125,9 +124,7 @@ class Verifier(
     val messageLoss = for (
       from <- originalSpec.nodes;
       to <- originalSpec.nodes;
-      time <- 1 to originalSpec.eff - 1
-      if (rando.nextInt % originalSpec.eff) == 1
-      if from != to
+      time <- 1 to originalSpec.eff - 1 if (rando.nextInt % originalSpec.eff) == 1 if from != to
     ) yield {
       MessageLoss(from, to, time)
     }
@@ -145,7 +142,6 @@ class Verifier(
       Run(runId.getAndIncrement, RunStatus("failure"), randomSpec, model, messages, Nil)
     }
   }
-
 
   /**
    * Run the verification, returning a lazy ephemeral stream of results.  You can perform
@@ -184,7 +180,7 @@ class Verifier(
       EphemeralStream.emptyEphemeralStream
     } else {
       val failureSpec = unexplored.next()
-      assert (!alreadyExplored.contains(failureSpec))
+      assert(!alreadyExplored.contains(failureSpec))
       val (run, potentialCounterexamples) = runFailureSpec(failureSpec)
       alreadyExplored += failureSpec
       run ##:: doVerify(queueToVerify ++ potentialCounterexamples)
@@ -203,11 +199,10 @@ class Verifier(
     logger.warn(s"FFG: $failureFreeGood.  PRE: $pres. POST: $posts.")
     logger.warn(s"FFG: Diff: $diff.")
 
-    (//model.tableAtTime("post", failureSpec.eot).toSet == failureFreeGood ||
+    ( //model.tableAtTime("post", failureSpec.eot).toSet == failureFreeGood ||
       //failureFreeGood.toList.forall(g => !pres.contains(g))
-      diff.isEmpty  
-      )
-    ;
+      diff.isEmpty
+    );
   }
 
   /**
@@ -227,7 +222,6 @@ class Verifier(
     //  val tups = p.allTups
     //  logger.debug("THIS prov, " + tups.toString)
     //}
-
 
     if (isGood(model)) {
       // This run may have used more channels than the original run; verify
