@@ -63,25 +63,29 @@ object SyncFTChecker extends LazyLogging {
   }
 
   def check(config: Config, metrics: MetricRegistry): EphemeralStream[Run] = {
+
     val combinedInput = config.inputPrograms.flatMap(Source.fromFile(_).getLines()).mkString("\n")
     val includeSearchPath = config.inputPrograms(0).getParentFile
     val program = combinedInput |> parseProgramAndIncludes(includeSearchPath) |> referenceClockRules |> splitAggregateRules |> addProvenanceRules
     val failureSpec = FailureSpec(config.eot, config.eff, config.crashes, config.nodes.toList)
+
     val solver = config.solver match {
       case "z3" => Z3Solver
       case "sat4j" => SAT4JSolver
       //case "ilp" => ILPSolver
       case s => throw new IllegalArgumentException(s"unknown solver $s")
     }
-    val verifier = new Verifier(failureSpec, program, solver, causalOnly = (config.strategy == "pcausal"),
-      useSymmetry = config.useSymmetry, negativeSupport = config.negativeSupport)(metrics)
+
+    val verifier = new Verifier(failureSpec, program, solver, causalOnly = (config.strategy == "pcausal"), useSymmetry = config.useSymmetry, negativeSupport = config.negativeSupport)(metrics)
     logger.info(s"Gross estimate: ${failureSpec.grossEstimate} runs")
+
     val results = config.strategy match {
       case "sat" => verifier.verify
       case "pcausal" => verifier.verify
       case "random" => verifier.random
       case s => throw new IllegalArgumentException(s"unknown strategy $s")
     }
+
     if (config.findAllCounterexamples) {
       results
     } else {
@@ -121,10 +125,8 @@ object SyncFTChecker extends LazyLogging {
 
       firstCounterExample match {
         case null => println("No counterexamples found".green)
-        case fs: FailureSpec =>
-          println(s"Found counterexamples; first is:\n${fs.crashes ++ fs.omissions}".red)
+        case fs: FailureSpec => println(s"Found counterexamples; first is:\n${fs.crashes ++ fs.omissions}".red)
       }
-
     } getOrElse {
       // Error messages
     }

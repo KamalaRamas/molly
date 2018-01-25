@@ -151,13 +151,15 @@ class Verifier(
   def verify: EphemeralStream[Run] = {
     logger.warn(s"DO verify")
 
-    val provenanceReader =
-      new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
+    val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
+
     logger.debug("get messages")
     val messages = provenanceReader.messages
+
     logger.debug("GET TREES")
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
+
     logger.debug("done TREES")
 
     //provenance.foreach{ p =>
@@ -169,25 +171,31 @@ class Verifier(
 
     val satModels = solver.solve(failureSpec, provenance, messages)
     //println(s"SAT models: $satModels")
-    val failureFreeRun =
-      Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, provenance_orig)
+    val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, provenance_orig)
+
     failureFreeRun ##:: doVerify(satModels.iterator)
   }
 
   private def doVerify(queueToVerify: Iterator[FailureSpec]): EphemeralStream[Run] = {
+
     val unexplored = queueToVerify.dropWhile(alreadyExplored.contains)
+
     if (unexplored.isEmpty) {
       EphemeralStream.emptyEphemeralStream
     } else {
+
       val failureSpec = unexplored.next()
       assert(!alreadyExplored.contains(failureSpec))
+
       val (run, potentialCounterexamples) = runFailureSpec(failureSpec)
       alreadyExplored += failureSpec
+
       run ##:: doVerify(queueToVerify ++ potentialCounterexamples)
     }
   }
 
   private def isGood(model: UltimateModel): Boolean = {
+
     // this, OR pre is empty in the current model for each post in failureFreeGood
     val pres = model.tableAtTime("pre", failureSpec.eot).toSet
     val posts = model.tableAtTime("post", failureSpec.eot).toSet
@@ -210,10 +218,14 @@ class Verifier(
    * counterexamples that should be explored.
    */
   private def runFailureSpec(failureSpec: FailureSpec): (Run, Set[FailureSpec]) = {
+
     logger.info(s"Retesting with crashes ${failureSpec.crashes} and losses ${failureSpec.omissions}")
+
     val failProgram = DedalusTyper.inferTypes(failureSpec.addClockFacts(program))
     val model = new C4Wrapper("with_errors", failProgram).run
+
     logger.info(s"'post' is ${model.tableAtTime("post", failureSpec.eot)}")
+
     val provenanceReader = new ProvenanceReader(failProgram, failureSpec, model, negativeSupport)
     val messages = provenanceReader.messages
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
