@@ -12,15 +12,11 @@ object DedalusRewrites {
    * Modify a program's rules and facts to reference a clock relation.
    */
   def referenceClockRules(program: Program): Program = {
-    def nextClock(loc: Atom) =
-      Predicate("clock", List(loc, dc, nreserved, dc), notin = false, None)
-    def localClock(loc: Atom) =
-      Predicate("clock", List(loc, loc, nreserved, dc), notin = false, None)
-    def asyncClock(from: Atom, to: Atom) =
-      Predicate("clock", List(from, to, nreserved, mreserved), notin = false, None)
 
-    def appendCol(col: Atom)(pred: Predicate): Predicate =
-      pred.copy(cols = pred.cols :+ col)
+    def nextClock(loc: Atom) = Predicate("clock", List(loc, dc, nreserved, dc), notin = false, None)
+    def localClock(loc: Atom) = Predicate("clock", List(loc, loc, nreserved, dc), notin = false, None)
+    def asyncClock(from: Atom, to: Atom) = Predicate("clock", List(from, to, nreserved, mreserved), notin = false, None)
+    def appendCol(col: Atom)(pred: Predicate): Predicate = pred.copy(cols = pred.cols :+ col)
 
     def rewriteHead(pred: Predicate, time: Time): Predicate = time match {
       case Next() => appendCol(Expr(nreserved, "+", IntLiteral(1)))(pred)
@@ -123,5 +119,4 @@ object DedalusRewrites {
     }
     program.copy(rules = program.rules ++ provenanceRules)
   }
-
 }

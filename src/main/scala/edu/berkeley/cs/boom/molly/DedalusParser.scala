@@ -79,11 +79,13 @@ object DedalusParser extends PositionedParserUtilities {
   override val whiteSpace = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
 
   private def processIncludes(program: Program, includeSearchPath: File): Program = {
+
     val includes = program.includes.map { include =>
       val includeFile = new File(includeSearchPath, include.file)
       val newProg = DedalusParser.parseProgram(Source.fromFile(includeFile).getLines().mkString("\n"))
       processIncludes(newProg, includeSearchPath)
     }
+
     Program(
       program.rules ++ includes.flatMap(_.rules),
       program.facts ++ includes.flatMap(_.facts),

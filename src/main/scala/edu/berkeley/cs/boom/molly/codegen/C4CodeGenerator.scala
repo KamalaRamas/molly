@@ -5,16 +5,20 @@ import edu.berkeley.cs.boom.molly.ast._
 import edu.berkeley.cs.boom.molly.ast.StringLiteral
 import edu.berkeley.cs.boom.molly.ast.IntLiteral
 import edu.berkeley.cs.boom.molly.ast.Program
-import edu.berkeley.cs.boom.molly.{DedalusType, DedalusTyper}
+import edu.berkeley.cs.boom.molly.{ DedalusType, DedalusTyper }
 
 object C4CodeGenerator extends PrettyPrinter {
+
   def generate(program: Program): String = {
+
     val tables = program.tables.map { table =>
       "define" <> parens(table.name <> comma <+> braces(ssep(table.types.map(typeToC4Type _ andThen text), ", "))) <> semi
     }
+
     val facts = program.facts.map(genFact)
     val rules = program.rules.map(genRule)
     val wholeProgram = (tables.toSeq ++ facts.toSeq ++ rules.toSeq).reduce(_ <@@> _)
+
     super.pretty(wholeProgram)
   }
 
@@ -49,7 +53,7 @@ object C4CodeGenerator extends PrettyPrinter {
   private def genFact(fact: Predicate): Doc = {
     genPredicate(fact) <> semi
   }
-  
+
   private def genPredicate(predicate: Predicate): Doc = {
     val notin = if (predicate.notin) "notin" <> space else empty
     notin <> predicate.tableName <> parens(ssep(predicate.cols.map(genAtom), ", "))

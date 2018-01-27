@@ -1,8 +1,8 @@
 package edu.berkeley.cs.boom.molly.report
 
 import argonaut._, Argonaut._
-import edu.berkeley.cs.boom.molly.{Run, RunStatus, FailureSpec, UltimateModel}
-import edu.berkeley.cs.boom.molly.derivations.{MessageLoss, CrashFailure, Message}
+import edu.berkeley.cs.boom.molly.{ Run, RunStatus, FailureSpec, UltimateModel }
+import edu.berkeley.cs.boom.molly.derivations.{ MessageLoss, CrashFailure, Message }
 
 /**
  * Argonaut CodecJsons for converting our objects to JSON;
@@ -15,7 +15,7 @@ object MollyCodecJsons {
 
   implicit def RunStatusCodecJson: CodecJson[RunStatus] =
     CodecJson.derived(StringEncodeJson.contramap((x: RunStatus) => x.underlying),
-                      StringDecodeJson.map(RunStatus.apply))
+      StringDecodeJson.map(RunStatus.apply))
 
   implicit def RunCodecJson: EncodeJson[Run] =
     jencode4L((run: Run) => (run.iteration, run.status, run.failureSpec, run.model))("iteration", "status", "failureSpec", "model")

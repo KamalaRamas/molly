@@ -4,7 +4,7 @@ import edu.berkeley.cs.boom.molly.ast._
 import com.typesafe.scalalogging.LazyLogging
 import edu.berkeley.cs.boom.molly.ast.StringLiteral
 import edu.berkeley.cs.boom.molly.ast.Rule
-import edu.berkeley.cs.boom.molly.{FailureSpec, UltimateModel}
+import edu.berkeley.cs.boom.molly.{ FailureSpec, UltimateModel }
 import edu.berkeley.cs.boom.molly.ast.Identifier
 import edu.berkeley.cs.boom.molly.ast.Program
 import edu.berkeley.cs.boom.molly.ast.Atom
@@ -15,8 +15,8 @@ import nl.grons.metrics.scala.InstrumentedBuilder
 import com.codahale.metrics.MetricRegistry
 import scala.collection.immutable._
 
-
 object ProvenanceReader {
+
   val WILDCARD = "__WILDCARD__"
 
   /**
@@ -35,25 +35,20 @@ object ProvenanceReader {
 /**
  * Constructs rule-goal graphs from provenance captured during execution.
  */
-class ProvenanceReader(program: Program,
-                       failureSpec: FailureSpec,
-                       model: UltimateModel, negativeSupport: Boolean)
-                      (implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
+class ProvenanceReader(
+  program: Program,
+  failureSpec: FailureSpec,
+  model: UltimateModel, negativeSupport: Boolean)(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
   import ProvenanceReader._
 
-
   private val derivationBuilding = metrics.timer("derivation-tree-building")
-
   private val provTableManager = new ProvenanceTableManager(program, model, failureSpec)
 
-  val getDerivationTree: GoalTuple => GoalNode =
-    Memo.mutableHashMapMemo { derivationBuilding.time { buildDerivationTree(_) }}
+  val getDerivationTree: GoalTuple => GoalNode = Memo.mutableHashMapMemo { derivationBuilding.time { buildDerivationTree(_) } }
 
-  val getAntiDerivationTree: GoalTuple => GoalNode =
-    Memo.mutableHashMapMemo { derivationBuilding.time { buildDerivationTree(_) }}
+  val getAntiDerivationTree: GoalTuple => GoalNode = Memo.mutableHashMapMemo { derivationBuilding.time { buildDerivationTree(_) } }
 
-  val getPhonyDerivationTree: GoalTuple => PhonyGoalNode =
-    Memo.mutableHashMapMemo { derivationBuilding.time { buildPhonyDerivationTree(_) }}
+  val getPhonyDerivationTree: GoalTuple => PhonyGoalNode = Memo.mutableHashMapMemo { derivationBuilding.time { buildPhonyDerivationTree(_) } }
 
   def getDerivationTreesForTable(goal: String): List[GoalNode] = {
     model.tableAtTime(goal, failureSpec.eot).map(GoalTuple(goal, _)).map(getDerivationTree)
@@ -96,7 +91,7 @@ class ProvenanceReader(program: Program,
          to capture the conservative assumption that *any* existing records from which
          goalTuple is negatively reachable could, if falsified, make goalTuple true */
       val phonyPred = Predicate("phonyGoal", List(StringLiteral("someplace")), false, None)
-      val phonyRule = Rule(Predicate("phony",List(),false, None),List(Left(phonyPred)))
+      val phonyRule = Rule(Predicate("phony", List(), false, None), List(Left(phonyPred)))
 
       if (causes.isEmpty) {
         logger.debug(s"no causes for $goalTuple")
@@ -113,16 +108,17 @@ class ProvenanceReader(program: Program,
       } else if (ruleFirings.isEmpty && tupleWasDerived) {
         throw new IllegalStateException(s"Couldn't find rules to explain derivation of $goalTuple")
       } else {
-        val ruleNodes = ruleFirings.map { case (provRule, bindings) =>
-          val (positiveGoals, negativeGoals) = ruleFiringToSubgoals(provRule, bindings)
-          negativeGoals.foreach(assertNotDerived) // Since we assume !goalTuple.negative here
-          // Recursively compute the provenance of the new goals:
-          val subgoals = if (negativeSupport) {
-            positiveGoals.map(_.copy(negative = false)) ++ negativeGoals.map(_.copy(negative = true))
-          } else {
-            positiveGoals.map(_.copy(negative = false))
-          }
-          Set(RuleNode(provRule, subgoals.map(getDerivationTree).toSet))
+        val ruleNodes = ruleFirings.map {
+          case (provRule, bindings) =>
+            val (positiveGoals, negativeGoals) = ruleFiringToSubgoals(provRule, bindings)
+            negativeGoals.foreach(assertNotDerived) // Since we assume !goalTuple.negative here
+            // Recursively compute the provenance of the new goals:
+            val subgoals = if (negativeSupport) {
+              positiveGoals.map(_.copy(negative = false)) ++ negativeGoals.map(_.copy(negative = true))
+            } else {
+              positiveGoals.map(_.copy(negative = false))
+            }
+            Set(RuleNode(provRule, subgoals.map(getDerivationTree).toSet))
         }
         RealGoalNode(goalTuple, ruleNodes.flatten.toSet)
       }
@@ -179,13 +175,13 @@ class ProvenanceReader(program: Program,
   }
 
   private def getContributingMessages(tuple: GoalTuple): Set[GoalTuple] = {
-    val nodes = messages.map{m => m.from} ++ messages.map{m => m.to}
-    val msgs = messages.filter{m => m.receiveTime != FailureSpec.NEVER}.map{m => GoalTuple("meta", List(m.to, m.from, m.sendTime.toString))}
+    val nodes = messages.map { m => m.from } ++ messages.map { m => m.to }
+    val msgs = messages.filter { m => m.receiveTime != FailureSpec.NEVER }.map { m => GoalTuple("meta", List(m.to, m.from, m.sendTime.toString)) }
     if (nodes.contains(tuple.cols.head)) {
-      msgs.filter { m => m != tuple && m.cols.head == tuple.cols.head && m.cols.last.toInt < tuple.cols.last.toInt}.toSet
+      msgs.filter { m => m != tuple && m.cols.head == tuple.cols.head && m.cols.last.toInt < tuple.cols.last.toInt }.toSet
     } else {
       // a goal that doesn't have a location depends on all previous messages at all locations, no?
-      msgs.filter{m => m != tuple && m.cols.last.toInt < tuple.cols.last.toInt}.toSet
+      msgs.filter { m => m != tuple && m.cols.last.toInt < tuple.cols.last.toInt }.toSet
     }
   }
 
@@ -198,9 +194,7 @@ class ProvenanceReader(program: Program,
     if (goalTuple.negative) {
       for (
         table <- provTableManager.provTables.getOrElse(goalTuple.table, Seq.empty);
-        time = if (table.rule.isAsync) goalTuple.cols.last.toInt - 1 else goalTuple.cols.last.toInt
-        if time > 0
-        if table.search(goalTuple.cols).isEmpty
+        time = if (table.rule.isAsync) goalTuple.cols.last.toInt - 1 else goalTuple.cols.last.toInt if time > 0 if table.search(goalTuple.cols).isEmpty
       ) yield {
         val nonTimeColNames = table.rule.head.cols.take(goalTuple.cols.size - 1)
         val bindings = nonTimeColNames.zip(goalTuple.cols.init).collect {
@@ -229,14 +223,15 @@ class ProvenanceReader(program: Program,
 
 case class DependsInfo(from: Predicate, to: Predicate, nonmonotonic: Boolean, temporality: Option[Time])
 
-class ProvenanceTableManager(program: Program, model: UltimateModel, failureSpec: FailureSpec)
-  extends LazyLogging {
+class ProvenanceTableManager(program: Program, model: UltimateModel, failureSpec: FailureSpec) extends LazyLogging {
   import ProvenanceReader._
 
   private val tableNamePattern = """^(.*)_prov\d+$""".r
-  private def isProvRule(rule: Rule): Boolean =
-    tableNamePattern.findFirstMatchIn(rule.head.tableName).isDefined
+
+  private def isProvRule(rule: Rule): Boolean = tableNamePattern.findFirstMatchIn(rule.head.tableName).isDefined
+
   val provRules = program.rules.filter(isProvRule)
+
   val provTables: Map[String, Seq[ProvenanceTable]] = provRules.map { rule =>
     val provRuleName = rule.head.tableName
     val provTableEntries = model.tables(provRuleName)
@@ -249,15 +244,19 @@ class ProvenanceTableManager(program: Program, model: UltimateModel, failureSpec
       DependsInfo(s.left.get, r.head, nm, r.head.time)
     }
   }.toSet
+
   val prett = depends.map(d => d.from.tableName + "-->" + d.to.tableName + "(" + d.temporality + ")")
+
   logger.debug(s"compute reach for $prett")
+
   // FIXME
-  val reach1 = reachability(depends, depends)//.filter(r => r.nonmonotonic)
+  val reach1 = reachability(depends, depends) //.filter(r => r.nonmonotonic)
+
   // there must be an idiomatic way to do this, eg using flatmap
-   val reach = reach1.filter{d =>
+  val reach = reach1.filter { d =>
     d.temporality match {
       case Some(_) => true
-      case None => !reach1.exists{inner =>
+      case None => !reach1.exists { inner =>
         (d.from == inner.from && d.to == inner.to) && (d.temporality match {
           case Some(_) => true
           case None => false
@@ -295,12 +294,11 @@ class ProvenanceTableManager(program: Program, model: UltimateModel, failureSpec
     val predecessorTables = reach.filter(r => goal.table == r.to.tableName).map(r => (r.from.tableName, r.temporality))
     for (
       p <- predecessorTables;
-      r <- model.tables(p._1)
-      if (r.last.toInt < goal.cols.last.toInt || (r.last.toInt == goal.cols.last.toInt && p._2 == None))
-    ) yield {GoalTuple(p._1, r, false, false)}
+      r <- model.tables(p._1) if (r.last.toInt < goal.cols.last.toInt || (r.last.toInt == goal.cols.last.toInt && p._2 == None))
+    ) yield { GoalTuple(p._1, r, false, false) }
   }
 
-  private def provRowToVariableBindings(provRule: Rule, provTableRow: List[String]):  Map[String, String] = {
+  private def provRowToVariableBindings(provRule: Rule, provTableRow: List[String]): Map[String, String] = {
     // Given a row from the provenance table, we need to reconstruct the variable bindings.
     // Most of the time there will be a 1-to-1 mapping between row values and variable
     // binding values, but in some cases rules may have arithmetic in the head, such as
@@ -331,8 +329,7 @@ class ProvenanceTableManager(program: Program, model: UltimateModel, failureSpec
   lazy val messages: List[Message] = {
     val msgs = for (
       (tableName, provTables) <- provTables;
-      table <- provTables
-      if table.rule.isAsync;
+      table <- provTables if table.rule.isAsync;
       clockPred = table.rule.bodyPredicates.filter(_.tableName == "clock")(0);
       fromIdent = clockPred.cols(0).asInstanceOf[Identifier].name;
       toIdent = clockPred.cols(1).asInstanceOf[Identifier].name;

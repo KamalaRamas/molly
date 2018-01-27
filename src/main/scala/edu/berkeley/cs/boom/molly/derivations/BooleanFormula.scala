@@ -1,13 +1,11 @@
 package edu.berkeley.cs.boom.molly.derivations
 
-
 trait BFNode[T] {
   def simplify: BFNode[T]
   def convertToCNF: BFNode[T]
   def vars: Set[T]
   def flipPolarity: BFNode[T]
   def clauses: Int
-
 }
 
 trait BinaryBFNode[T] extends BFNode[T] {
@@ -32,7 +30,7 @@ trait BinaryBFNode[T] extends BFNode[T] {
       case (BFLiteral(None), BFLiteral(None)) => BFLiteral(None)
       case (BFLiteral(None), c) => c.simplify
       case (c, BFLiteral(None)) => c.simplify
-      case (c: BFLiteral[T], d:BFLiteral[T]) => {
+      case (c: BFLiteral[T], d: BFLiteral[T]) => {
         if (c == d) {
           c
         } else {
@@ -46,7 +44,7 @@ trait BinaryBFNode[T] extends BFNode[T] {
 }
 
 //case class BFAndNode[T](left:BFNode[T], right:BFNode[T]) extends BFNode[T] {
-case class BFAndNode[T](left:BFNode[T], right:BFNode[T]) extends BinaryBFNode[T] {
+case class BFAndNode[T](left: BFNode[T], right: BFNode[T]) extends BinaryBFNode[T] {
 
   override def construct(l: BFNode[T], r: BFNode[T]): BFNode[T] = {
     BFAndNode(l, r)
@@ -58,6 +56,7 @@ case class BFAndNode[T](left:BFNode[T], right:BFNode[T]) extends BinaryBFNode[T]
   }
 
   def findConjuncts: CNFFlat[T] = {
+
     val newL: Set[Disjuncts[T]] = left match {
       case a: BFAndNode[T] => a.findConjuncts.conjunctz
       case o: BFOrNode[T] => Set(o.findDisjuncts)
@@ -74,7 +73,8 @@ case class BFAndNode[T](left:BFNode[T], right:BFNode[T]) extends BinaryBFNode[T]
     CNFFlat(newL ++ newR)
   }
 }
-case class BFOrNode[T](left:BFNode[T], right:BFNode[T]) extends BinaryBFNode[T] {
+
+case class BFOrNode[T](left: BFNode[T], right: BFNode[T]) extends BinaryBFNode[T] {
 
   override def construct(l: BFNode[T], r: BFNode[T]): BFNode[T] = {
     BFOrNode(l, r)
@@ -100,13 +100,16 @@ case class BFOrNode[T](left:BFNode[T], right:BFNode[T]) extends BinaryBFNode[T] 
   }
 }
 
-case class BFLiteral[T](v:Option[T]) extends BFNode[T] {
+case class BFLiteral[T](v: Option[T]) extends BFNode[T] {
+
   override def simplify: BFNode[T] = {
     BFLiteral(v)
   }
+
   override def convertToCNF: BFNode[T] = {
     BFLiteral(v)
   }
+
   override def vars = {
     v match {
       case Some(c) => Set(c)
@@ -123,11 +126,10 @@ case class BFLiteral[T](v:Option[T]) extends BFNode[T] {
   }
 }
 
-
-
 /* Formula wrapper classes */
 
 trait AbstractBooleanFormula[T] {
+
   def root: BFNode[T]
   def construct(node: BFNode[T]): AbstractBooleanFormula[T]
 
@@ -179,6 +181,7 @@ case class Disjuncts[T](disjuncts: Set[T])
 case class CNFFlat[T](conjunctz: Set[Disjuncts[T]])
 
 case class CNFFormula[T](root: BFNode[T]) extends AbstractBooleanFormula[T] {
+
   def construct(node: BFNode[T]) = {
     CNFFormula(node)
   }
@@ -192,6 +195,3 @@ case class CNFFormula[T](root: BFNode[T]) extends AbstractBooleanFormula[T] {
     }
   }
 }
-
-
-

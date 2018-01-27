@@ -30,6 +30,7 @@ case class Config(
   maxRuns: Int = Int.MaxValue)
 
 object SyncFTChecker extends LazyLogging {
+
   val parser = new scopt.OptionParser[Config]("syncftChecker") {
     head("syncftchecker", "0.1")
     opt[Int]('t', "EOT") text "end of time (default 3)" action { (x, c) => c.copy(eot = x) }
@@ -50,6 +51,7 @@ object SyncFTChecker extends LazyLogging {
    * Like `takeWhile`, but also takes the first element NOT satisfying the predicate.
    */
   def takeUpTo[T](stream: EphemeralStream[T], pred: T => Boolean): EphemeralStream[T] = {
+
     if (stream.isEmpty) {
       stream
     } else {
@@ -94,6 +96,7 @@ object SyncFTChecker extends LazyLogging {
   }
 
   def main(args: Array[String]) {
+
     val metrics = new MetricRegistry
     val metricsReporter = Slf4jReporter.forRegistry(metrics)
       .outputTo(logger.underlying)
@@ -109,6 +112,7 @@ object SyncFTChecker extends LazyLogging {
         case r =>
           if (firstCounterExample == null && r.status == RunStatus("failure"))
             firstCounterExample = r.failureSpec
+          println(s"\n\n-----\nRUN: ${r.iteration}\nMESSAGES: ${r.messages}\nPROVENANCE: ${r.provenance}\n-----\n\n")
           r
       }
 

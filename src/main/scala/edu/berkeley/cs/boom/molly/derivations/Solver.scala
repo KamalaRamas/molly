@@ -3,7 +3,7 @@ package edu.berkeley.cs.boom.molly.derivations
 import edu.berkeley.cs.boom.molly.FailureSpec
 import com.codahale.metrics.MetricRegistry
 import edu.berkeley.cs.boom.molly.util.SetUtils
-import nl.grons.metrics.scala.{MetricName, MetricBuilder}
+import nl.grons.metrics.scala.{ MetricName, MetricBuilder }
 import scala.language.implicitConversions
 import com.typesafe.scalalogging.LazyLogging
 
@@ -16,7 +16,7 @@ case class CrashFailure(node: String, time: Int) extends SolverVariable
 // be dropped from resulting solutions prior to consumption by downstream code.
 case class NeverCrashed(node: String) extends SolverVariable
 case class MessageLoss(from: String, to: String, time: Int) extends SolverVariable {
-  require (from != to, "Can't lose messages sent to self")
+  require(from != to, "Can't lose messages sent to self")
 }
 case class Not(v: SolverVariable) extends SolverVariable
 
@@ -36,18 +36,16 @@ trait Solver extends LazyLogging {
    * @return all solutions to the SAT problem, formulated as failure specifications
    */
   def solve(
-      failureSpec: FailureSpec,
-      goals: List[GoalNode],
-      messages: Seq[Message],
-      seed: Set[SolverVariable] = Set.empty)
-      //(implicit metricRegistry: MetricRegistry): Set[FailureSpec] = {
-      (implicit metricRegistry: MetricRegistry): Seq[FailureSpec] = {
-
+    failureSpec: FailureSpec,
+    goals: List[GoalNode],
+    messages: Seq[Message],
+    seed: Set[SolverVariable] = Set.empty) //(implicit metricRegistry: MetricRegistry): Set[FailureSpec] = {
+    (implicit metricRegistry: MetricRegistry): Seq[FailureSpec] = {
 
     implicit val metrics = new MetricBuilder(MetricName(getClass), metricRegistry)
 
     val firstMessageSendTimes = messages.groupBy(_.from).mapValues(_.minBy(_.sendTime).sendTime)
-    val models = goals.flatMap{ goal => solve(failureSpec, goal, firstMessageSendTimes, seed)}.toSet
+    val models = goals.flatMap { goal => solve(failureSpec, goal, firstMessageSendTimes, seed) }.toSet
     logger.info(s"Problem has ${models.size} solutions")
     logger.debug(s"Solutions are:\n${models.map(_.toString()).mkString("\n")}")
     val minimalModels: Seq[Set[SolverVariable]] = SetUtils.minimalSets(models.toSeq)
@@ -61,11 +59,10 @@ trait Solver extends LazyLogging {
    * Solver method implemented by subclasses.
    */
   protected def solve(
-      failureSpec: FailureSpec,
-      goal: GoalNode,
-      firstMessageSendTimes: Map[String, Int],
-      seed: Set[SolverVariable])
-      (implicit metrics: MetricBuilder): Traversable[Set[SolverVariable]]
+    failureSpec: FailureSpec,
+    goal: GoalNode,
+    firstMessageSendTimes: Map[String, Int],
+    seed: Set[SolverVariable])(implicit metrics: MetricBuilder): Traversable[Set[SolverVariable]]
 }
 
 object Solver {
@@ -78,8 +75,8 @@ object Solver {
    * @return a FailureSpec corresponding to this solution
    */
   def solutionToFailureSpec(
-      originalFailureSpec: FailureSpec,
-      solution: Set[SolverVariable]): Option[FailureSpec] = {
+    originalFailureSpec: FailureSpec,
+    solution: Set[SolverVariable]): Option[FailureSpec] = {
     val crashes = solution.collect { case cf: CrashFailure => cf }
     // If the seed contained a message loss, then it's possible that the SAT solver found
     // a solution where that message's sender crashes before that message loss.
@@ -93,7 +90,7 @@ object Solver {
     if (crashes.isEmpty && omissions.isEmpty) {
       None
     } else {
-      Some(originalFailureSpec.copy (crashes = crashes, omissions = omissions))
+      Some(originalFailureSpec.copy(crashes = crashes, omissions = omissions))
     }
   }
 }

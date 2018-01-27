@@ -90,15 +90,16 @@ class Verifier(
    * Same as `verify`, except uses a naive random exploration of the space of possible failures.
    */
   def random: EphemeralStream[Run] = {
-    val provenanceReader =
-      new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
+
+    val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
     val messages = provenanceReader.messages
-    val failureFreeRun =
-      Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, Nil)
+    val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, Nil)
+
     failureFreeRun ##:: doRandom
   }
 
   private def whichProvenance(reader: ProvenanceReader, orig: List[GoalNode]): List[GoalNode] = {
+
     if (causalOnly) {
       reader.getPhonyDerivationTreesForTable("post")
     } else {
@@ -107,12 +108,15 @@ class Verifier(
   }
 
   private def doRandom: EphemeralStream[Run] = {
+
     val run = someRandomRun
     logger.warn(s"run info is ${run.status}")
+
     run ##:: doRandom
   }
 
   private def someRandomRun: Run = {
+
     val numCrashes = rando.nextInt(originalSpec.maxCrashes + 1)
     val crashes = for (
       crash <- rando.shuffle(originalSpec.nodes).take(numCrashes);
@@ -130,11 +134,13 @@ class Verifier(
     }
 
     logger.warn(s"Testing with crashes $crashes and losses $messageLoss")
+
     val randomSpec = originalSpec.copy(crashes = crashes.toSet, omissions = messageLoss.toSet)
     val failProgram = DedalusTyper.inferTypes(randomSpec.addClockFacts(program))
     val model = new C4Wrapper("with_errors", failProgram).run
     val provenanceReader = new ProvenanceReader(failProgram, randomSpec, model, negativeSupport)
     val messages = provenanceReader.messages
+
     if (isGood(model)) {
       Run(runId.getAndIncrement, RunStatus("success"), randomSpec, model, messages, Nil)
     } else {
@@ -149,6 +155,7 @@ class Verifier(
    * it finds a counterexample or terminates.
    */
   def verify: EphemeralStream[Run] = {
+
     logger.warn(s"DO verify")
 
     val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
@@ -159,18 +166,17 @@ class Verifier(
     logger.debug("GET TREES")
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
-
     logger.debug("done TREES")
 
-    //provenance.foreach{ p =>
-    //  val tups = p.allTups
-    //  logger.debug("THIS prov, " + tups.toString)
-    //}
+    // provenance.foreach { p =>
+    //   val tups = p.allTups
+    //   logger.debug("THIS prov, " + tups.toString)
+    // }
     logger.debug(s"Solving formula")
-    //logger.warn(s"all tups: $tups")
+    // logger.warn(s"all tups: $tups")
 
     val satModels = solver.solve(failureSpec, provenance, messages)
-    //println(s"SAT models: $satModels")
+    // println(s"SAT models: $satModels")
     val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, provenance_orig)
 
     failureFreeRun ##:: doVerify(satModels.iterator)
@@ -230,24 +236,28 @@ class Verifier(
     val messages = provenanceReader.messages
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
+
     //provenance.foreach{ p =>
     //  val tups = p.allTups
     //  logger.debug("THIS prov, " + tups.toString)
     //}
 
     if (isGood(model)) {
+
       // This run may have used more channels than the original run; verify
       // that omissions on those new channels don't produce counterexamples:
       logger.warn(s"Solving...")
+
       val seed: Set[SolverVariable] = failureSpec.crashes ++ failureSpec.omissions
-      val potentialCounterexamples =
-        solver.solve(failureSpec, provenance, messages, seed).toSet -- Set(failureSpec)
-      val run =
-        Run(runId.getAndIncrement, RunStatus("success"), failureSpec, model, messages, provenance_orig)
+      val potentialCounterexamples = solver.solve(failureSpec, provenance, messages, seed).toSet -- Set(failureSpec)
+      val run = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, model, messages, provenance_orig)
+
       (run, potentialCounterexamples)
+
     } else {
-      val run =
-        Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, provenance_orig)
+
+      val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, provenance_orig)
+
       (run, Set.empty)
     }
   }

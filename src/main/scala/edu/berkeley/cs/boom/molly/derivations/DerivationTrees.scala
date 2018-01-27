@@ -2,15 +2,16 @@ package edu.berkeley.cs.boom.molly.derivations
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import scala.collection.immutable.{Nil, Set, List}
+import scala.collection.immutable.{ Nil, Set, List }
 
 import scalaz._
 import Scalaz._
 
-import edu.berkeley.cs.boom.molly.ast.{Identifier, Predicate, Rule}
+import edu.berkeley.cs.boom.molly.ast.{ Identifier, Predicate, Rule }
 import edu.berkeley.cs.boom.molly.util.HashcodeCaching
 
 object DerivationTrees {
+
   val nextRuleNodeId = new AtomicInteger(0)
   val nextGoalNodeId = new AtomicInteger(0)
 
@@ -33,9 +34,9 @@ case class GoalTuple(
 
   override def toString: String = {
     (if (negative) "NOT!" else "") +
-    (if (tombstone) "TOMB" else "") +
-    table +
-    "(" + cols.mkString(", ") + ")"
+      (if (tombstone) "TOMB" else "") +
+      table +
+      "(" + cols.mkString(", ") + ")"
   }
 }
 
@@ -91,17 +92,15 @@ trait GoalNode extends DerivationTreeNode {
 case class RealGoalNode(
   tuple: GoalTuple,
   pRules: Set[RuleNode],
-  negative: Boolean = false
-) extends HashcodeCaching with GoalNode {
+  negative: Boolean = false) extends HashcodeCaching with GoalNode {
 
   override lazy val rules = pRules
 
   override lazy val ownImportantClock = {
     tuple match {
-      case GoalTuple("clock", List(from, to, time, _), _, _)
-        if from != to
-          && to != ProvenanceReader.WILDCARD
-          && from != ProvenanceReader.WILDCARD => Some((from, to, time.toInt))
+      case GoalTuple("clock", List(from, to, time, _), _, _) if from != to
+        && to != ProvenanceReader.WILDCARD
+        && from != ProvenanceReader.WILDCARD => Some((from, to, time.toInt))
       case _ => None
     }
   }
@@ -115,7 +114,7 @@ case class RealGoalNode(
     if (rules.isEmpty) {
       if (tuple.tombstone) Set() else Set(this)
     } else {
-      rules.flatMap{ r =>
+      rules.flatMap { r =>
         val dd = r.enumerateDistinctDerivationsOfSubGoals
         dd.map(d => this.copy(pRules = Set(d)))
       }
@@ -146,13 +145,11 @@ case class RealGoalNode(
 
 case class PhonyGoalNode(
   tuple: GoalTuple,
-  history: Set[GoalNode]
-) extends GoalNode {
+  history: Set[GoalNode]) extends GoalNode {
 
   override lazy val ownImportantClock = {
     tuple match {
-      case GoalTuple("meta", List(to, from, time), _, _)
-        if from != to && to != ProvenanceReader.WILDCARD => Some((from, to, time.toInt))
+      case GoalTuple("meta", List(to, from, time), _, _) if from != to && to != ProvenanceReader.WILDCARD => Some((from, to, time.toInt))
       case _ => None
     }
   }
@@ -169,7 +166,6 @@ case class PhonyGoalNode(
   def booleanFormula: BFNode[(String, String, Int)] = {
     BFLiteral(None)
   }
-
 }
 
 /**
@@ -177,10 +173,9 @@ case class PhonyGoalNode(
  */
 case class RuleNode(
   rule: Rule,
-  subgoals: Set[GoalNode]
-) extends HashcodeCaching with DerivationTreeNode {
+  subgoals: Set[GoalNode]) extends HashcodeCaching with DerivationTreeNode {
 
-  require (!subgoals.isEmpty, "RuleNode must have subgoals" + subgoals + rule)
+  require(!subgoals.isEmpty, "RuleNode must have subgoals" + subgoals + rule)
   val id = DerivationTrees.nextRuleNodeId.getAndIncrement
   lazy val enumerateDistinctDerivationsOfSubGoals: List[RuleNode] = {
     val choices: List[List[GoalNode]] = subgoals.map(_.enumerateDistinctDerivations.toList).toList
