@@ -19,9 +19,7 @@ import sext._
 object SAT4JSolver extends Solver {
 
   protected def solve(failureSpec: FailureSpec, goal: GoalNode,
-                    firstMessageSendTimes: Map[String, Int], seed: Set[SolverVariable])
-                   (implicit metrics: MetricBuilder):
-  Traversable[Set[SolverVariable]] = {
+    firstMessageSendTimes: Map[String, Int], seed: Set[SolverVariable])(implicit metrics: MetricBuilder): Traversable[Set[SolverVariable]] = {
     val solver = SolverFactory.newLight()
     val idToSatVariable = mutable.HashMap[Int, SolverVariable]()
     val satVariableToId = mutable.HashMap[SolverVariable, Int]()
@@ -42,14 +40,14 @@ object SAT4JSolver extends Solver {
     var timer = System.currentTimeMillis();
     val bf = BooleanFormula(goal.booleanFormula).simplifyAll.flipPolarity
     logger.debug(s"initial formula \n${bf.treeString}")
-    logger.debug(s"${System.currentTimeMillis()-timer} millis -- simplification")
+    logger.debug(s"${System.currentTimeMillis() - timer} millis -- simplification")
     timer = System.currentTimeMillis();
     val formula = bf.convertToCNFAll
-    logger.debug(s"${System.currentTimeMillis()-timer} millis -- CNF")
+    logger.debug(s"${System.currentTimeMillis() - timer} millis -- CNF")
 
     val importantNodes: Set[String] =
       formula.root.vars.filter(_._3 < failureSpec.eot).map(_._1).toSet ++
-    seed.collect { case cf: CrashFailure => cf.node }
+        seed.collect { case cf: CrashFailure => cf.node }
     if (importantNodes.isEmpty) {
       logger.debug(s"Goal ${goal.tuple} has no important nodes; skipping SAT solver")
       return Set.empty
@@ -76,14 +74,15 @@ object SAT4JSolver extends Solver {
     // If there are at most C crashes, then at least (N - C) nodes never crash:
     solver.addAtLeast(failureSpec.nodes.map(NeverCrashed), failureSpec.nodes.size - failureSpec.maxCrashes)
 
-    for (disjunct <- formula.conjuncts.conjunctz;
-        if !disjunct.disjuncts.isEmpty
+    for (
+      disjunct <- formula.conjuncts.conjunctz;
+      if !disjunct.disjuncts.isEmpty
     ) {
       val messageLosses = disjunct.disjuncts.map(MessageLoss.tupled)
       val crashes = messageLosses.flatMap { loss =>
         val firstSendTime = firstMessageSendTimes.getOrElse(loss.from, 1)
         val crashTimes = firstSendTime to loss.time
-        crashTimes.map ( t => CrashFailure(loss.from, t))
+        crashTimes.map(t => CrashFailure(loss.from, t))
       }
       //logger.warn(s"loss possibility: $messageLosses")
       //logger.warn(s"crash possibility: $crashes")
@@ -106,7 +105,7 @@ object SAT4JSolver extends Solver {
         }
       }
     }
-    solver.reset()  // Required to allow the solver to be GC'ed.
+    solver.reset() // Required to allow the solver to be GC'ed.
     //logger.de("RETURNING with " + models.size)
     models
   }

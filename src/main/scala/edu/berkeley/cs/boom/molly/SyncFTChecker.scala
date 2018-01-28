@@ -112,7 +112,7 @@ object SyncFTChecker extends LazyLogging {
         case r =>
           if (firstCounterExample == null && r.status == RunStatus("failure"))
             firstCounterExample = r.failureSpec
-          println(s"\n\n-----\nRUN: ${r.iteration}\nMESSAGES: ${r.messages}\nPROVENANCE: ${r.provenance}\n-----\n\n")
+          // println(s"\n\n-----\nRUN: ${r.iteration}\nMESSAGES: ${r.messages}\nPROVENANCE: ${r.provenance}\n-----\n\n")
           r
       }
 

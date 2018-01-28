@@ -20,39 +20,42 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     super.pretty(dot)
   }
 
-  /*
-{
-  "nodes": [
-    {
-      "goal1": {
-        "label": "post(b, hello, 4)"
-      }
-    },
-    {
-      "rule43": {
-        "label": "node_prov0"
-      }
-    }
-  ],
-  "edges": [
-    {
-      "from": "goal1",
-      "to": "rule43"
-    },
-    {
-      "from": "goal1",
-      "to": "rule43"
-    }
-  ]
-}
-   */
   def generateJSON(goals: List[GoalNode]): String = {
 
-    val json = braces(nest(linebreak <>
-      "\"roots\":" <+> brackets(nest(linebreak <>
-        nest(ssep(goals.map(g => ("{" <@@> nest("\"goal" + g.id + "\":" <+> "\"" + g.tuple.toString + "\"") <@@> "}")), comma <> linebreak))
+    val data = goals.flatMap(jsonStatements)
+
+    // Filter out nodes and edges from the full list.
+    val nodes = data.filter((item: String) => item.contains("label")).toSet
+    val edges = data.filter((item: String) => !item.contains("label")).toSet
+
+    // Construct the final JSON.
+    val json = braces(
+      nest(linebreak <>
+        "\"nodes\":" <+> brackets(
+          nest(linebreak <>
+            nest(
+              ssep(nodes.map(
+                node =>
+                  braces(linebreak <>
+                    nest(text(node))
+                  )
+              ).to[scala.collection.immutable.Seq], comma <> linebreak)
+            ) <> linebreak
+          )
+        ) <> comma <> linebreak <>
+          "\"edges\":" <+> brackets(
+            nest(linebreak <>
+              nest(
+                ssep(edges.map(
+                  edge =>
+                    braces(linebreak <>
+                      nest(text(edge))
+                    )
+                ).to[scala.collection.immutable.Seq], comma <> linebreak)
+              ) <> linebreak
+            )
+          )
       ) <> linebreak
-      )) <> linebreak
     ) <> linebreak
 
     super.pretty(json)
@@ -127,5 +130,75 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     }
 
     nodes ++ edges ++ rule.subgoals.flatMap(dotStatements)
+  }
+
+  private def jsonStatements(goal: GoalNode): List[String] = {
+
+    val nodeID = s"goal${goal.id}"
+
+    val goalString = super.pretty(
+      "\"" + nodeID + "\":" <+> braces(
+        nest(linebreak <>
+          nest(
+            nest(
+              nest(
+                "\"label\":" <+> "\"" + goal.tuple.toString + "\"" <> linebreak
+              )
+            )
+          )
+        )
+      ) <> linebreak
+    )
+
+    val edges = goal.rules.map {
+      rule =>
+        super.pretty(
+          nest(
+            nest(
+              nest(
+                "\"from\":" <+> "\"" <> text(nodeID) <> "\"" <> comma <> linebreak <>
+                  "\"to\":" <+> "\"" <> text("rule" + rule.id) <> "\""
+              ) <> linebreak
+            )
+          )
+        )
+    }
+
+    List(goalString) ++ edges ++ goal.rules.flatMap(jsonStatements)
+  }
+
+  private def jsonStatements(rule: RuleNode): List[String] = {
+
+    val nodeID = s"rule${rule.id}"
+
+    val ruleString = super.pretty(
+      "\"" + nodeID + "\":" <+> braces(
+        nest(linebreak <>
+          nest(
+            nest(
+              nest(
+                "\"label\":" <+> "\"" + rule.rule.head.tableName + "\"" <> linebreak
+              )
+            )
+          )
+        )
+      ) <> linebreak
+    )
+
+    val edges = rule.subgoals.map {
+      goal =>
+        super.pretty(
+          nest(
+            nest(
+              nest(
+                "\"from\":" <+> "\"" <> text(nodeID) <> "\"" <> comma <> linebreak <>
+                  "\"to\":" <+> "\"" <> text("goal" + goal.id) <> "\""
+              ) <> linebreak
+            )
+          )
+        )
+    }
+
+    List(ruleString) ++ edges ++ rule.subgoals.flatMap(jsonStatements)
   }
 }
