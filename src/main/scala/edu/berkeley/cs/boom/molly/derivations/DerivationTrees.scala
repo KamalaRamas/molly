@@ -111,6 +111,7 @@ case class RealGoalNode(
   }
 
   override lazy val enumerateDistinctDerivations: Set[GoalNode] = {
+
     if (rules.isEmpty) {
       if (tuple.tombstone) Set() else Set(this)
     } else {
@@ -129,6 +130,7 @@ case class RealGoalNode(
     Memo.mutableHashMapMemo(makeBooleanFormula(_))
 
   def makeBooleanFormula(rules: List[RuleNode]): BFNode[(String, String, Int)] = {
+
     if (rules.size == 0) {
       BFLiteral(None)
     } else if (rules.size == 1) {
@@ -177,7 +179,9 @@ case class RuleNode(
 
   require(!subgoals.isEmpty, "RuleNode must have subgoals" + subgoals + rule)
   val id = DerivationTrees.nextRuleNodeId.getAndIncrement
+
   lazy val enumerateDistinctDerivationsOfSubGoals: List[RuleNode] = {
+
     val choices: List[List[GoalNode]] = subgoals.map(_.enumerateDistinctDerivations.toList).toList
     if (choices.exists(_.isEmpty)) {
       // There's an underivable subgoal, so this rule couldn't have fired.
@@ -191,10 +195,10 @@ case class RuleNode(
     memoBooleanFormula(subgoals.toList)
   }
 
-  lazy val memoBooleanFormula: List[GoalNode] => BFNode[(String, String, Int)] =
-    Memo.mutableHashMapMemo(makeBooleanFormula(_))
+  lazy val memoBooleanFormula: List[GoalNode] => BFNode[(String, String, Int)] = Memo.mutableHashMapMemo(makeBooleanFormula(_))
 
   def makeBooleanFormula(goals: List[GoalNode]): BFNode[(String, String, Int)] = {
+
     if (goals.size == 1) {
       goals.head.booleanFormula
     } else {

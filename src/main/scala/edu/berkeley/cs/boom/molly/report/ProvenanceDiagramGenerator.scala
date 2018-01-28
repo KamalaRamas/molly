@@ -20,6 +20,11 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     super.pretty(dot)
   }
 
+  /**
+   * generateJSON accepts a list of goal nodes and
+   * recursively generates their provenance, formatted
+   * as JSON.
+   */
   def generateJSON(goals: List[GoalNode]): String = {
 
     val data = goals.flatMap(jsonStatements)
@@ -33,30 +38,30 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
       nest(linebreak <>
         "\"nodes\":" <+> brackets(
           nest(linebreak <>
-            nest(
-              ssep(nodes.map(
-                node =>
-                  braces(linebreak <>
-                    nest(text(node))
+            ssep(nodes.map(
+              node =>
+                braces(
+                  nest(linebreak <>
+                    text(node)
+                  ) <> linebreak
+                )
+            ).to[scala.collection.immutable.Seq], comma <> linebreak)
+          ) <> linebreak
+        ) <> comma <> linebreak <>
+          "\"edges\":" <+> brackets(
+            nest(linebreak <>
+              ssep(edges.map(
+                edge =>
+                  braces(
+                    nest(linebreak <>
+                      text(edge)
+                    ) <> linebreak
                   )
               ).to[scala.collection.immutable.Seq], comma <> linebreak)
             ) <> linebreak
           )
-        ) <> comma <> linebreak <>
-          "\"edges\":" <+> brackets(
-            nest(linebreak <>
-              nest(
-                ssep(edges.map(
-                  edge =>
-                    braces(linebreak <>
-                      nest(text(edge))
-                    )
-                ).to[scala.collection.immutable.Seq], comma <> linebreak)
-              ) <> linebreak
-            )
-          )
       ) <> linebreak
-    ) <> linebreak
+    )
 
     super.pretty(json)
   }
@@ -132,22 +137,30 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     nodes ++ edges ++ rule.subgoals.flatMap(dotStatements)
   }
 
+  /**
+   * jsonStatements takes in a node of type goal,
+   * wraps its ID and some node information into JSON,
+   * adds the edges leading up to this node,
+   * and recursively builds the same output for
+   * all rules that result in this node.
+   */
   private def jsonStatements(goal: GoalNode): List[String] = {
 
     val nodeID = s"goal${goal.id}"
 
     val goalString = super.pretty(
       "\"" + nodeID + "\":" <+> braces(
-        nest(linebreak <>
+        nest(
           nest(
             nest(
-              nest(
-                "\"label\":" <+> "\"" + goal.tuple.toString + "\"" <> linebreak
-              )
+              nest(linebreak <>
+                "\"label\":" <+> "\"" + goal.tuple.toString + "\"" <> comma <> linebreak <>
+                "\"table\":" <+> "\"" + goal.tuple.table + "\""
+              ) <> linebreak
             )
           )
         )
-      ) <> linebreak
+      )
     )
 
     val edges = goal.rules.map {
@@ -158,7 +171,7 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
               nest(
                 "\"from\":" <+> "\"" <> text(nodeID) <> "\"" <> comma <> linebreak <>
                   "\"to\":" <+> "\"" <> text("rule" + rule.id) <> "\""
-              ) <> linebreak
+              )
             )
           )
         )
@@ -167,22 +180,31 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     List(goalString) ++ edges ++ goal.rules.flatMap(jsonStatements)
   }
 
+  /**
+   * jsonStatements takes in a node of type rule,
+   * wraps its ID and some node information into JSON,
+   * adds the edges leading up to this node,
+   * and recursively builds the same output for
+   * all subgoals that precede the execution of this rule.
+   */
   private def jsonStatements(rule: RuleNode): List[String] = {
 
     val nodeID = s"rule${rule.id}"
+    val nodeTable = rule.rule.head.tableName.split("_")(0)
 
     val ruleString = super.pretty(
       "\"" + nodeID + "\":" <+> braces(
-        nest(linebreak <>
+        nest(
           nest(
             nest(
-              nest(
-                "\"label\":" <+> "\"" + rule.rule.head.tableName + "\"" <> linebreak
-              )
+              nest(linebreak <>
+                "\"label\":" <+> "\"" + rule.rule.head.tableName + "\"" <> comma <> linebreak <>
+                "\"table\":" <+> "\"" + nodeTable + "\""
+              ) <> linebreak
             )
           )
         )
-      ) <> linebreak
+      )
     )
 
     val edges = rule.subgoals.map {
@@ -193,7 +215,7 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
               nest(
                 "\"from\":" <+> "\"" <> text(nodeID) <> "\"" <> comma <> linebreak <>
                   "\"to\":" <+> "\"" <> text("goal" + goal.id) <> "\""
-              ) <> linebreak
+              )
             )
           )
         )
