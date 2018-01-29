@@ -1,7 +1,7 @@
 package edu.berkeley.cs.boom.molly
 
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.{ FunSuite, Matchers }
 
 import edu.berkeley.cs.boom.molly.ast.Rule
 import edu.berkeley.cs.boom.molly.derivations._
@@ -25,19 +25,19 @@ class DerivationTreesSuite extends FunSuite with Matchers with MockitoSugar {
   test("edb fact") {
     val tuple = GoalTuple("fact", List("a"), negative = false, tombstone = false)
     val goal = edb(tuple)
-    goal.ownImportantClock should be (None)
-    goal.importantClocks should be (empty)
-    goal.enumerateDistinctDerivations should be (Set(goal))
-    goal.allTups should be (Set(tuple))
+    goal.ownImportantClock should be(None)
+    goal.importantClocks should be(empty)
+    goal.enumerateDistinctDerivations should be(Set(goal))
+    goal.allTups should be(Set(tuple))
   }
 
   test("clock fact") {
     val tuple = clockTuple("from", "to", 1)
     val goal = edb(tuple)
-    goal.ownImportantClock should be (Some("from", "to", 1))
-    goal.importantClocks should be (Set(("from", "to", 1)))
-    goal.enumerateDistinctDerivations should be (Set(goal))
-    goal.allTups should be (Set(goal.tuple))
+    goal.ownImportantClock should be(Some("from", "to", 1))
+    goal.importantClocks should be(Set(("from", "to", 1)))
+    goal.enumerateDistinctDerivations should be(Set(goal))
+    goal.allTups should be(Set(goal.tuple))
   }
 
   test("goal with two rule firings") {
@@ -47,12 +47,12 @@ class DerivationTreesSuite extends FunSuite with Matchers with MockitoSugar {
     val persistenceRule = RuleNode(mock[Rule], Set(edb(logA1), edb(clockTuple("A", "A", 1))))
     val sendRule = RuleNode(mock[Rule], Set(edb(logB1), edb(clockTuple("B", "A", 1))))
     val goal = RealGoalNode(logA2, Set(persistenceRule, sendRule), negative = false)
-    goal.importantClocks should be (Set(("B", "A", 1)))
-    goal.enumerateDistinctDerivations should be (Set(
+    goal.importantClocks should be(Set(("B", "A", 1)))
+    goal.enumerateDistinctDerivations should be(Set(
       goal.copy(pRules = Set(persistenceRule)),
       goal.copy(pRules = Set(sendRule))
     ))
-    goal.allTups should be (Set(
+    goal.allTups should be(Set(
       logA1, logA2, logB1, clockTuple("A", "A", 1), clockTuple("B", "A", 1)
     ))
   }
@@ -78,8 +78,8 @@ class DerivationTreesSuite extends FunSuite with Matchers with MockitoSugar {
         )
       )
     )
-    tree.enumerateDistinctDerivations.size should be (4)
-    tree.enumerateDistinctDerivations.map(_.allTups) should be (Set(
+    tree.enumerateDistinctDerivations.size should be(4)
+    tree.enumerateDistinctDerivations.map(_.allTups) should be(Set(
       Set(root, a, c), Set(root, a, d), Set(root, b, c), Set(root, b, d)
     ))
   }

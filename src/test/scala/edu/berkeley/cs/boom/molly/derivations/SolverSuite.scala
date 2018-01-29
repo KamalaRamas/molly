@@ -1,6 +1,6 @@
 package edu.berkeley.cs.boom.molly.derivations
 
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.{ FunSuite, Matchers }
 
 import edu.berkeley.cs.boom.molly.FailureSpec
 
@@ -16,13 +16,12 @@ class SolverSuite extends FunSuite with Matchers {
       MessageLoss("B", "A", 1) // arrives at receiver while receiver crashes, so should be removed
     )
     val failureSpec = Solver.solutionToFailureSpec(originalFailureSpec, solution).get
-    failureSpec.crashes should be (Set(CrashFailure("A", 2)))
-    failureSpec.omissions should be (Set(MessageLoss("A", "B", 1)))
+    failureSpec.crashes should be(Set(CrashFailure("A", 2)))
+    failureSpec.omissions should be(Set(MessageLoss("A", "B", 1)))
   }
 
   test("solutionToFailureSpec should not return failure-free specs") {
     val originalFailureSpec = FailureSpec(eot = 4, eff = 2, maxCrashes = 1, nodes = List("A", "B"))
-    Solver.solutionToFailureSpec(originalFailureSpec, Set.empty) should be (None)
+    Solver.solutionToFailureSpec(originalFailureSpec, Set.empty) should be(None)
   }
-
 }

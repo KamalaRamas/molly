@@ -1,9 +1,9 @@
 package edu.berkeley.cs.boom.molly
 
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.{ FunSuite, Matchers }
 
 import edu.berkeley.cs.boom.molly.ast._
-import edu.berkeley.cs.boom.molly.DedalusRewrites.{dc, nreserved, mreserved}
+import edu.berkeley.cs.boom.molly.DedalusRewrites.{ dc, nreserved, mreserved }
 
 class DedalusRewritesSuite extends FunSuite with Matchers {
 
@@ -25,7 +25,7 @@ class DedalusRewritesSuite extends FunSuite with Matchers {
           Left(Predicate("clock", List(node, node, nreserved, dc), notin = false, time = None))
         ))
     )
-    rewrittenProgram.rules should be (expectedRules)
+    rewrittenProgram.rules should be(expectedRules)
   }
 
   test("clock rewrite with inductive rule") {
@@ -47,7 +47,7 @@ class DedalusRewritesSuite extends FunSuite with Matchers {
           Left(Predicate("clock", List(node, dc, nreserved, dc), notin = false, time = None))
         ))
     )
-    rewrittenProgram.rules should be (expectedRules)
+    rewrittenProgram.rules should be(expectedRules)
   }
 
   test("clock rewrite with async rule") {
@@ -73,7 +73,6 @@ class DedalusRewritesSuite extends FunSuite with Matchers {
           Left(Predicate("clock", List(node1, node2, nreserved, mreserved), notin = false, time = None))
         ))
     )
-    rewrittenProgram.rules should be (expectedRules)
+    rewrittenProgram.rules should be(expectedRules)
   }
-
 }

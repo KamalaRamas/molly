@@ -149,15 +149,12 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     val nodeID = s"goal${goal.id}"
 
     val goalString = super.pretty(
-      "\"" + nodeID + "\":" <+> braces(
+      nest(
         nest(
           nest(
-            nest(
-              nest(linebreak <>
-                "\"label\":" <+> "\"" + goal.tuple.toString + "\"" <> comma <> linebreak <>
-                "\"table\":" <+> "\"" + goal.tuple.table + "\""
-              ) <> linebreak
-            )
+            "\"id\": \"" + nodeID + "\"" <> comma <> linebreak <>
+              "\"label\": \"" + goal.tuple.toString + "\"" <> comma <> linebreak <>
+              "\"table\": \"" + goal.tuple.table + "\""
           )
         )
       )
@@ -193,15 +190,12 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     val nodeTable = rule.rule.head.tableName.split("_")(0)
 
     val ruleString = super.pretty(
-      "\"" + nodeID + "\":" <+> braces(
+      nest(
         nest(
           nest(
-            nest(
-              nest(linebreak <>
-                "\"label\":" <+> "\"" + rule.rule.head.tableName + "\"" <> comma <> linebreak <>
-                "\"table\":" <+> "\"" + nodeTable + "\""
-              ) <> linebreak
-            )
+            "\"id\": \"" + nodeID + "\"" <> comma <> linebreak <>
+              "\"label\": \"" + rule.rule.head.tableName + "\"" <> comma <> linebreak <>
+              "\"table\": \"" + nodeTable + "\""
           )
         )
       )

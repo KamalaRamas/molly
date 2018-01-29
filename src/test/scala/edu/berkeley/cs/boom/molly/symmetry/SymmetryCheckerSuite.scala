@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 import edu.berkeley.cs.boom.molly.FailureSpec
 import edu.berkeley.cs.boom.molly.ast._
-import edu.berkeley.cs.boom.molly.derivations.{MessageLoss, CrashFailure}
+import edu.berkeley.cs.boom.molly.derivations.{ MessageLoss, CrashFailure }
 
 class SymmetryCheckerSuite extends FunSuite {
   test("simple symmetry with an empty EDB and no rules") {
