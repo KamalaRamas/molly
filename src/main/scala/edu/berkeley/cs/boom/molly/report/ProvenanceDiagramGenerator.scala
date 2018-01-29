@@ -29,37 +29,50 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
 
     val data = goals.flatMap(jsonStatements)
 
-    // Filter out nodes and edges from the full list.
-    val nodes = data.filter((item: String) => item.contains("label")).toSet
-    val edges = data.filter((item: String) => !item.contains("label")).toSet
+    // Filter out goals, rules, and edges from the full list.
+    val prettyGoals = data.filter((item: String) => (!item.contains("from") && item.contains("goal"))).toSet
+    val prettyRules = data.filter((item: String) => (!item.contains("from") && item.contains("rule"))).toSet
+    val prettyEdges = data.filter((item: String) => item.contains("from")).toSet
 
     // Construct the final JSON.
     val json = braces(
       nest(linebreak <>
-        "\"nodes\":" <+> brackets(
+        "\"goals\":" <+> brackets(
           nest(linebreak <>
-            ssep(nodes.map(
-              node =>
+            ssep(prettyGoals.map(
+              goal =>
                 braces(
                   nest(linebreak <>
-                    text(node)
+                    text(goal)
                   ) <> linebreak
                 )
             ).to[scala.collection.immutable.Seq], comma <> linebreak)
           ) <> linebreak
         ) <> comma <> linebreak <>
-          "\"edges\":" <+> brackets(
+          "\"rules\":" <+> brackets(
             nest(linebreak <>
-              ssep(edges.map(
-                edge =>
+              ssep(prettyRules.map(
+                rule =>
                   braces(
                     nest(linebreak <>
-                      text(edge)
+                      text(rule)
                     ) <> linebreak
                   )
               ).to[scala.collection.immutable.Seq], comma <> linebreak)
             ) <> linebreak
-          )
+          ) <> comma <> linebreak <>
+            "\"edges\":" <+> brackets(
+              nest(linebreak <>
+                ssep(prettyEdges.map(
+                  edge =>
+                    braces(
+                      nest(linebreak <>
+                        text(edge)
+                      ) <> linebreak
+                    )
+                ).to[scala.collection.immutable.Seq], comma <> linebreak)
+              ) <> linebreak
+            )
       ) <> linebreak
     )
 
