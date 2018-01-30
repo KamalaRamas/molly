@@ -6,7 +6,6 @@ import scala.collection.mutable
 import com.typesafe.scalalogging.LazyLogging
 import nl.grons.metrics.scala.InstrumentedBuilder
 
-
 class SymmetryAwareSet(symmetryChecker: SymmetryChecker)(implicit val metricRegistry: MetricRegistry)
   extends mutable.Set[FailureSpec] with LazyLogging with InstrumentedBuilder {
 

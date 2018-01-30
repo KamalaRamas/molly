@@ -21,11 +21,11 @@ object SetUtils {
     //    - A set can be a superset of MANY smaller sets, so exclude it as soon as
     //      we find the first subset.
     //    - A set can only be a superset of smaller sets, so group the sets by size.å
-    val setsBySize = sets.groupBy(_.size).toSeq.sortBy(- _._1) // minus sign -> descending sizes
+    val setsBySize = sets.groupBy(_.size).toSeq.sortBy(-_._1) // minus sign -> descending sizes
     @tailrec
     def removeSupersets(
-        setsBySize: Seq[(Int, Seq[Set[T]])],
-        accum: Seq[Set[T]] = Seq.empty): Seq[Set[T]] = {
+      setsBySize: Seq[(Int, Seq[Set[T]])],
+      accum: Seq[Set[T]] = Seq.empty): Seq[Set[T]] = {
       if (setsBySize.isEmpty) {
         accum
       } else {

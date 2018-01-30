@@ -32,5 +32,4 @@ object MollyCodecJsons {
 
   implicit def MessageCodecJson: CodecJson[Message] =
     casecodec5(Message.apply, Message.unapply)("table", "from", "to", "sendTime", "receiveTime")
-
 }

@@ -1,7 +1,7 @@
 package edu.berkeley.cs.boom.molly.symmetry
 
-import edu.berkeley.cs.boom.molly.ast.{Predicate, Program, StringLiteral}
-import edu.berkeley.cs.boom.molly.{DedalusType, DedalusTyper, FailureSpec}
+import edu.berkeley.cs.boom.molly.ast.{ Predicate, Program, StringLiteral }
+import edu.berkeley.cs.boom.molly.{ DedalusType, DedalusTyper, FailureSpec }
 
 import com.typesafe.scalalogging.LazyLogging
 
@@ -23,21 +23,22 @@ class SymmetryChecker(program: Program, nodes: List[String]) extends LazyLogging
   private type TableTypes = Map[String, List[DedalusType]]
 
   private val typesForTable: TableTypes = {
-    val fs = FailureSpec(1, 0, 0, nodes)  // TODO: shouldn't have to add dummy clocks to typecheck
+    val fs = FailureSpec(1, 0, 0, nodes) // TODO: shouldn't have to add dummy clocks to typecheck
     val tables = DedalusTyper.inferTypes(fs.addClockFacts(program)).tables
-    tables.map { t => (t.name, t.types)}.toMap
+    tables.map { t => (t.name, t.types) }.toMap
   }
 
   private val locationLiteralsThatAppearInRules: Set[String] = {
     val predicates = program.rules.flatMap(_.bodyPredicates).filter(_.tableName != "clock")
-    predicates.collect { case pred@Predicate(table, cols, _, _) =>
-      val colTypes = typesForTable(table)
-      pred.cols.zip(colTypes).collect {
-        case (StringLiteral(l), DedalusType.LOCATION) => {
-          logger.debug(s"Location literal '$l' appears in rule defining '$table'")
-          l
+    predicates.collect {
+      case pred @ Predicate(table, cols, _, _) =>
+        val colTypes = typesForTable(table)
+        pred.cols.zip(colTypes).collect {
+          case (StringLiteral(l), DedalusType.LOCATION) => {
+            logger.debug(s"Location literal '$l' appears in rule defining '$table'")
+            l
+          }
         }
-      }
     }.flatten.toSet
   }
 
@@ -58,7 +59,8 @@ class SymmetryChecker(program: Program, nodes: List[String]) extends LazyLogging
   private val possiblySymmetricForStableEDB: Seq[Map[String, String]] = {
     // The `drop` here is so that we skip the identity mapping:
     val remappings = possiblySymmetricBasedOnRules.permutations.drop(1).map { p =>
-      possiblySymmetricBasedOnRules.zip(p).toMap }
+      possiblySymmetricBasedOnRules.zip(p).toMap
+    }
     val edb = program.facts.toSet
     remappings.filter { m => mapLocations(edb, typesForTable, m) == edb }.toSeq
   }
@@ -75,7 +77,7 @@ class SymmetryChecker(program: Program, nodes: List[String]) extends LazyLogging
    */
   def areEquivalentForEDB(a: FailureSpec, b: FailureSpec): Boolean = {
     if (possiblySymmetricForStableEDB.isEmpty) return false
-    require (a.nodes == nodes && b.nodes == nodes)
+    require(a.nodes == nodes && b.nodes == nodes)
     if (a == b) return true
     val aEDB: EDB = a.generateClockFacts.toSet
     val bEDB: EDB = b.generateClockFacts.toSet
@@ -86,16 +88,17 @@ class SymmetryChecker(program: Program, nodes: List[String]) extends LazyLogging
    * Apply a function to location-valued EDB columns
    */
   private def mapLocations(
-      edb: EDB,
-      typesForTable: TableTypes,
-      f: PartialFunction[String, String]): EDB = {
-    edb.map { case fact @ Predicate(table, cols, _, _) =>
-      val colTypes = typesForTable(table)
-      val newCols = cols.zip(colTypes).map {
-        case (StringLiteral(loc), DedalusType.LOCATION) if f.isDefinedAt(loc) => StringLiteral(f(loc))
-        case (c, _) => c
-      }
-      fact.copy(cols = newCols)
+    edb: EDB,
+    typesForTable: TableTypes,
+    f: PartialFunction[String, String]): EDB = {
+    edb.map {
+      case fact @ Predicate(table, cols, _, _) =>
+        val colTypes = typesForTable(table)
+        val newCols = cols.zip(colTypes).map {
+          case (StringLiteral(loc), DedalusType.LOCATION) if f.isDefinedAt(loc) => StringLiteral(f(loc))
+          case (c, _) => c
+        }
+        fact.copy(cols = newCols)
     }
   }
 }

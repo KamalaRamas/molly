@@ -1,6 +1,5 @@
 package edu.berkeley.cs.boom.molly.util
 
-
 /**
  * Mixin trait to cache an object's hashCode.  This is only safe to apply to immutable objects.
  *

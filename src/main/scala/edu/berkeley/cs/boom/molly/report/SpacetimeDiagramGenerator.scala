@@ -23,7 +23,8 @@ object SpacetimeDiagramGenerator extends GraphvizPrettyPrinter {
 
     val nodeTimes = for (
       n <- failureSpec.nodes;
-      t <- 1 to lastTimeOfNode(n)) yield {
+      t <- 1 to lastTimeOfNode(n)
+    ) yield {
       val crashed = !failureSpec.crashes.filter(c => c.node == n && c.time <= t).isEmpty
       val sentOrReceivedMessage = messages.exists { m =>
         (m.from == n && m.to != n && m.sendTime == t) || (m.to == n && m.from != n && m.receiveTime == t)
@@ -40,31 +41,32 @@ object SpacetimeDiagramGenerator extends GraphvizPrettyPrinter {
       s"edge[weight=2, arrowhead=none, color=gray75, fillcolor=$TIMELINE_COLOR];" <@@> s"proc_$n -> " <> nodes.mkString(" -> ") <> semi
     }
 
-    val messageEdges = messages.flatMap { case Message(table, from, to, sendTime, receiveTime) =>
-      val wasLost = receiveTime == FailureSpec.NEVER
-      val receiverEOT = lastTimeOfNode(to)
-      // Note that this doesn't draw mesasges that were sent to nodes that have been
-      // crashed for more than one timestep.
-      val receiverCrashed = receiveTime > receiverEOT && receiverEOT < failureSpec.eot
-      if (receiverCrashed) None
-      else diEdge(s"node_${from}_$sendTime", s"node_${to}_${sendTime + 1}",
-        "label" -> (table + (if (wasLost) " (LOST)" else "")),
-        "constraint" -> "false",
-        "weight" -> "0",
-        "style" -> (if (wasLost) "dashed" else "solid"),
-        "color" -> (if (wasLost) "red" else "black")
-      ).some
+    val messageEdges = messages.flatMap {
+      case Message(table, from, to, sendTime, receiveTime) =>
+        val wasLost = receiveTime == FailureSpec.NEVER
+        val receiverEOT = lastTimeOfNode(to)
+        // Note that this doesn't draw mesasges that were sent to nodes that have been
+        // crashed for more than one timestep.
+        val receiverCrashed = receiveTime > receiverEOT && receiverEOT < failureSpec.eot
+        if (receiverCrashed) None
+        else diEdge(s"node_${from}_$sendTime", s"node_${to}_${sendTime + 1}",
+          "label" -> (table + (if (wasLost) " (LOST)" else "")),
+          "constraint" -> "false",
+          "weight" -> "0",
+          "style" -> (if (wasLost) "dashed" else "solid"),
+          "color" -> (if (wasLost) "red" else "black")
+        ).some
     }
 
     val dot = "digraph" <+> "spacetime" <+> braces(nest(
       linebreak <>
-      "rankdir=TD" <@@>
-      "splines=line" <@@>  // Keep the message lines straight
-      "outputorder=nodesfirst" <@@>
-      subgraph("cluster_proc_nodes", "", processNodes) <@@>
-      nodeTimes.reduce(_ <@@> _) <@@>
-      messageEdges.foldLeft(empty)(_ <@@> _) <@@>
-      timelineLines.reduce(_ <@@> _)
+        "rankdir=TD" <@@>
+        "splines=line" <@@> // Keep the message lines straight
+        "outputorder=nodesfirst" <@@>
+        subgraph("cluster_proc_nodes", "", processNodes) <@@>
+        nodeTimes.reduce(_ <@@> _) <@@>
+        messageEdges.foldLeft(empty)(_ <@@> _) <@@>
+        timelineLines.reduce(_ <@@> _)
     ) <> linebreak)
     super.pretty(dot)
   }

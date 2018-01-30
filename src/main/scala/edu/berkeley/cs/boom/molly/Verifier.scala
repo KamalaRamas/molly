@@ -162,6 +162,7 @@ class Verifier(
 
     logger.debug("get messages")
     val messages = provenanceReader.messages
+    // println(s"\nMessages: ${messages}\n")
 
     logger.debug("GET TREES")
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
@@ -176,7 +177,8 @@ class Verifier(
     // logger.warn(s"all tups: $tups")
 
     val satModels = solver.solve(failureSpec, provenance, messages)
-    // println(s"SAT models: $satModels")
+    // println(s"\nSAT models: ${satModels}\n")
+
     val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, provenance_orig)
 
     failureFreeRun ##:: doVerify(satModels.iterator)

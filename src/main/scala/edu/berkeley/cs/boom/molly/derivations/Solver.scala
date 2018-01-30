@@ -11,13 +11,17 @@ import com.typesafe.scalalogging.LazyLogging
  * SolverVariables are used to map message losses and failures into SAT / SMT formula variables.
  */
 sealed trait SolverVariable
+
 case class CrashFailure(node: String, time: Int) extends SolverVariable
+
 // Note that NeverCrashed variables are placeholders used in SAT constraints; they can safely
 // be dropped from resulting solutions prior to consumption by downstream code.
 case class NeverCrashed(node: String) extends SolverVariable
+
 case class MessageLoss(from: String, to: String, time: Int) extends SolverVariable {
   require(from != to, "Can't lose messages sent to self")
 }
+
 case class Not(v: SolverVariable) extends SolverVariable
 
 /**
@@ -45,12 +49,18 @@ trait Solver extends LazyLogging {
     implicit val metrics = new MetricBuilder(MetricName(getClass), metricRegistry)
 
     val firstMessageSendTimes = messages.groupBy(_.from).mapValues(_.minBy(_.sendTime).sendTime)
-    val models = goals.flatMap { goal => solve(failureSpec, goal, firstMessageSendTimes, seed) }.toSet
+    val models = goals.flatMap {
+      goal => solve(failureSpec, goal, firstMessageSendTimes, seed)
+    }.toSet
+
     logger.info(s"Problem has ${models.size} solutions")
     logger.debug(s"Solutions are:\n${models.map(_.toString()).mkString("\n")}")
+
     val minimalModels: Seq[Set[SolverVariable]] = SetUtils.minimalSets(models.toSeq)
+
     logger.info(s"SAT problem has ${minimalModels.size} minimal solutions")
     logger.debug(s"Minimal SAT solutions are:\n${minimalModels.map(_.toString()).mkString("\n")}")
+
     //minimalModels.flatMap(vars => Solver.solutionToFailureSpec(failureSpec, vars)).toSet
     minimalModels.flatMap(vars => Solver.solutionToFailureSpec(failureSpec, vars))
   }
@@ -77,7 +87,11 @@ object Solver {
   def solutionToFailureSpec(
     originalFailureSpec: FailureSpec,
     solution: Set[SolverVariable]): Option[FailureSpec] = {
-    val crashes = solution.collect { case cf: CrashFailure => cf }
+
+    val crashes = solution.collect {
+      case cf: CrashFailure => cf
+    }
+
     // If the seed contained a message loss, then it's possible that the SAT solver found
     // a solution where that message's sender crashes before that message loss.
     // Such message losses are redundant, so we'll remove them:
@@ -86,7 +100,11 @@ object Solver {
         case cf @ CrashFailure(ml.from, t) if t <= ml.time => cf
         case cf @ CrashFailure(ml.to, t) if t + 1 >= ml.time => cf
       }.isDefined
-    val omissions = solution.collect { case ml: MessageLoss => ml }.filterNot(subsumedByCrash)
+
+    val omissions = solution.collect {
+      case ml: MessageLoss => ml
+    }.filterNot(subsumedByCrash)
+
     if (crashes.isEmpty && omissions.isEmpty) {
       None
     } else {
