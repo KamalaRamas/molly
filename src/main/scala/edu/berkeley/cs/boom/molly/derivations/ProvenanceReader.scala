@@ -38,14 +38,15 @@ object ProvenanceReader {
 class ProvenanceReader(
   program: Program,
   failureSpec: FailureSpec,
-  model: UltimateModel, negativeSupport: Boolean)(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
+  model: UltimateModel,
+  negativeSupport: Boolean,
+  ignoreProvNodes: Seq[String])(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
   import ProvenanceReader._
 
   private val derivationBuilding = metrics.timer("derivation-tree-building")
   private val provTableManager = new ProvenanceTableManager(program, model, failureSpec)
 
   val getDerivationTree: GoalTuple => GoalNode = Memo.mutableHashMapMemo { derivationBuilding.time { buildDerivationTree(_) } }
-
   val getAntiDerivationTree: GoalTuple => GoalNode = Memo.mutableHashMapMemo { derivationBuilding.time { buildDerivationTree(_) } }
 
   val getPhonyDerivationTree: GoalTuple => PhonyGoalNode = Memo.mutableHashMapMemo { derivationBuilding.time { buildPhonyDerivationTree(_) } }
@@ -88,12 +89,15 @@ class ProvenanceReader(
     val tupleWasDerived = model.tables(goalTuple.table).exists(matchesPattern(goalTuple.cols))
 
     lazy val ruleFirings = findRuleFirings(goalTuple)
-    logger.debug(s"Reading provenance for tuple $goalTuple $tupleWasDerived")
+    logger.debug(s"Reading provenance for tuple ${goalTuple} ${tupleWasDerived}")
 
     if (goalTuple.negative && negativeSupport) {
 
       // a conservative overapproximation of the facts whose existence make goalTuple false
-      val causes = provTableManager.possibleCauses(goalTuple)
+      val causesRaw = provTableManager.possibleCauses(goalTuple)
+      val causes = causesRaw.filter {
+        cause => !ignoreProvNodes.exists(cause.toString.contains)
+      }
 
       /* we need a stub rule node, which requires at least one stub table,
          to capture the conservative assumption that *any* existing records from which
@@ -102,10 +106,10 @@ class ProvenanceReader(
       val phonyRule = Rule(Predicate("phony", List(), false, None), List(Left(phonyPred)))
 
       if (causes.isEmpty) {
-        logger.debug(s"no causes for $goalTuple")
+        logger.debug(s"no causes for ${goalTuple}")
         RealGoalNode(goalTuple, Set())
       } else {
-        logger.debug(s"possible causes of $goalTuple: $causes")
+        logger.debug(s"possible causes of ${goalTuple}: ${causes}")
         RealGoalNode(goalTuple, Set(RuleNode(phonyRule, causes.map(getDerivationTree).toSet)))
       }
 
@@ -115,7 +119,7 @@ class ProvenanceReader(
 
       if (isInEDB(goalTuple)) {
 
-        logger.debug(s"Found $goalTuple in EDB")
+        logger.debug(s"Found ${goalTuple} in EDB")
         RealGoalNode(goalTuple, Set.empty)
 
       } else if (ruleFirings.isEmpty && tupleWasDerived) {
@@ -129,11 +133,16 @@ class ProvenanceReader(
             val (positiveGoals, negativeGoals) = ruleFiringToSubgoals(provRule, bindings)
             negativeGoals.foreach(assertNotDerived) // Since we assume !goalTuple.negative here
             // Recursively compute the provenance of the new goals:
-            val subgoals = if (negativeSupport) {
+            val subgoalsUnfiltered = if (negativeSupport) {
               positiveGoals.map(_.copy(negative = false)) ++ negativeGoals.map(_.copy(negative = true))
             } else {
               positiveGoals.map(_.copy(negative = false))
             }
+            println(s"subgoals before: ${subgoalsUnfiltered}\n")
+            val subgoals = subgoalsUnfiltered.filter {
+              subgoal => !ignoreProvNodes.exists(subgoal.toString.contains)
+            }
+            println(s"subgoals after: ${subgoals}\n")
             Set(RuleNode(provRule, subgoals.map(getDerivationTree).toSet))
         }
 
@@ -207,16 +216,22 @@ class ProvenanceReader(
    * the matching rules and variable bindings extracted from the provenance table entries.
    */
   private def findRuleFirings(goalTuple: GoalTuple): Seq[(Rule, Map[String, String])] = {
+
     assert(goalTuple.cols.last != WILDCARD, "Time shouldn't be a wildcard")
+
     if (goalTuple.negative) {
+
       for (
         table <- provTableManager.provTables.getOrElse(goalTuple.table, Seq.empty);
         time = if (table.rule.isAsync) goalTuple.cols.last.toInt - 1 else goalTuple.cols.last.toInt if time > 0 if table.search(goalTuple.cols).isEmpty
       ) yield {
+
         val nonTimeColNames = table.rule.head.cols.take(goalTuple.cols.size - 1)
+
         val bindings = nonTimeColNames.zip(goalTuple.cols.init).collect {
           case (Identifier(ident), provValue) => (ident, provValue)
         } ++ List("_" -> WILDCARD, "NRESERVED" -> time.toString, "MRESERVED" -> (time + 1).toString)
+
         (table.rule, bindings.toMap)
       }
     } else {

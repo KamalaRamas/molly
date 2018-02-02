@@ -27,6 +27,7 @@ case class Config(
   disableDotRendering: Boolean = false,
   findAllCounterexamples: Boolean = false,
   negativeSupport: Boolean = true,
+  ignoreProvNodes: scala.collection.immutable.Seq[String] = scala.collection.immutable.Seq(),
   maxRuns: Int = Int.MaxValue)
 
 object SyncFTChecker extends LazyLogging {
@@ -44,6 +45,7 @@ object SyncFTChecker extends LazyLogging {
     opt[Unit]("disable-dot-rendering") text "disable automatic rendering of `dot` diagrams" action { (_, c) => c.copy(disableDotRendering = true) }
     opt[Unit]("find-all-counterexamples") text "continue after finding the first counterexample" action { (_, c) => c.copy(findAllCounterexamples = true) }
     opt[Unit]("negative-support") text "Disable negative support. Mind, that negative support is slow, but necessary for completeness." action { (_, c) => c.copy(negativeSupport = false) }
+    opt[String]("ignore-prov-nodes") text "Comma-separated list of substrings of node names to ignore while constructing the provenance tree." action { (x, c) => c.copy(ignoreProvNodes = x.split(',').to[collection.immutable.Seq]) }
     arg[File]("<file>...") unbounded () minOccurs 1 text "Dedalus files" action { (x, c) => c.copy(inputPrograms = c.inputPrograms :+ x) }
   }
 
@@ -78,7 +80,7 @@ object SyncFTChecker extends LazyLogging {
       case s => throw new IllegalArgumentException(s"unknown solver $s")
     }
 
-    val verifier = new Verifier(failureSpec, program, solver, causalOnly = (config.strategy == "pcausal"), useSymmetry = config.useSymmetry, negativeSupport = config.negativeSupport)(metrics)
+    val verifier = new Verifier(failureSpec, program, solver, causalOnly = (config.strategy == "pcausal"), useSymmetry = config.useSymmetry, negativeSupport = config.negativeSupport, ignoreProvNodes = config.ignoreProvNodes)(metrics)
     logger.info(s"Gross estimate: ${failureSpec.grossEstimate} runs")
 
     val results = config.strategy match {
@@ -112,7 +114,6 @@ object SyncFTChecker extends LazyLogging {
         case r =>
           if (firstCounterExample == null && r.status == RunStatus("failure"))
             firstCounterExample = r.failureSpec
-          // println(s"\n\n-----\nRUN: ${r.iteration}\nMESSAGES: ${r.messages}\nPROVENANCE: ${r.provenance}\n-----\n\n")
           r
       }
 

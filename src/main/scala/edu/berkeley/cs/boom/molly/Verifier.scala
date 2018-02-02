@@ -45,6 +45,7 @@ case class Run(
  * @param useSymmetry if true, use symmetry analysis to prune the exploration of failure scenarios
  *                    that are isomorphic to ones that we have already considered
  * @param negativeSupport if true, explore beneath negative subgoals when constructing provenance trees
+ * @param ignoreProvNodes if provided, excludes nodes, having the contained substrings in their names, from the provenance tree
  * @param metricRegistry a CodaHale metrics registry, for logging performance statistics
  */
 class Verifier(
@@ -53,7 +54,8 @@ class Verifier(
   solver: Solver = Z3Solver,
   causalOnly: Boolean = false,
   useSymmetry: Boolean = false,
-  negativeSupport: Boolean = false)(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
+  negativeSupport: Boolean = false,
+  ignoreProvNodes: scala.collection.immutable.Seq[String] = scala.collection.immutable.Seq())(implicit val metricRegistry: MetricRegistry) extends LazyLogging with InstrumentedBuilder {
 
   private val failureFreeSpec = failureSpec.copy(eff = 0, maxCrashes = 0)
   private val failureFreeProgram = DedalusTyper.inferTypes(failureFreeSpec.addClockFacts(program))
@@ -89,7 +91,7 @@ class Verifier(
    */
   def random: EphemeralStream[Run] = {
 
-    val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
+    val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
     val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, Nil)
 
@@ -136,7 +138,7 @@ class Verifier(
     val randomSpec = originalSpec.copy(crashes = crashes.toSet, omissions = messageLoss.toSet)
     val failProgram = DedalusTyper.inferTypes(randomSpec.addClockFacts(program))
     val model = new C4Wrapper("with_errors", failProgram).run
-    val provenanceReader = new ProvenanceReader(failProgram, randomSpec, model, negativeSupport)
+    val provenanceReader = new ProvenanceReader(failProgram, randomSpec, model, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
 
     if (isGood(model)) {
@@ -156,7 +158,7 @@ class Verifier(
 
     logger.warn(s"DO verify")
 
-    val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport)
+    val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport, ignoreProvNodes)
 
     logger.debug("get messages")
     val messages = provenanceReader.messages
@@ -232,7 +234,7 @@ class Verifier(
 
     logger.info(s"'post' is ${model.tableAtTime("post", failureSpec.eot)}")
 
-    val provenanceReader = new ProvenanceReader(failProgram, failureSpec, model, negativeSupport)
+    val provenanceReader = new ProvenanceReader(failProgram, failureSpec, model, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
