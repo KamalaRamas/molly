@@ -65,28 +65,36 @@ class ProvenanceReader(
    * subgoals were derived.
    */
   private def assertNotDerived(goal: GoalTuple) {
+
     val matchingTuples = model.tables(goal.table).filter(matchesPattern(goal.cols))
     val ruleFirings = findRuleFirings(goal)
     val internallyConsistent = matchingTuples.isEmpty == ruleFirings.isEmpty
+
     assert(internallyConsistent, s"Tuple $goal found in table without derivation (or vice-versa)")
     assert(matchingTuples.isEmpty, s"Found derivation ${matchingTuples(0)} of negative goal $goal")
     assert(ruleFirings.isEmpty, s"Found rule firings $ruleFirings for negative goal $goal")
   }
 
   private def buildPhonyDerivationTree(goalTuple: GoalTuple): PhonyGoalNode = {
+
     val msgs = getContributingMessages(goalTuple)
-    logger.debug(s"$goalTuple phony msgs: $msgs")
+    logger.debug(s"${goalTuple} phony msgs: ${msgs}")
+
     PhonyGoalNode(goalTuple, msgs.map(getPhonyDerivationTree))
   }
 
   private def buildDerivationTree(goalTuple: GoalTuple): GoalNode = {
+
     val tupleWasDerived = model.tables(goalTuple.table).exists(matchesPattern(goalTuple.cols))
+
     lazy val ruleFirings = findRuleFirings(goalTuple)
     logger.debug(s"Reading provenance for tuple $goalTuple $tupleWasDerived")
 
     if (goalTuple.negative && negativeSupport) {
+
       // a conservative overapproximation of the facts whose existence make goalTuple false
       val causes = provTableManager.possibleCauses(goalTuple)
+
       /* we need a stub rule node, which requires at least one stub table,
          to capture the conservative assumption that *any* existing records from which
          goalTuple is negatively reachable could, if falsified, make goalTuple true */
@@ -100,14 +108,22 @@ class ProvenanceReader(
         logger.debug(s"possible causes of $goalTuple: $causes")
         RealGoalNode(goalTuple, Set(RuleNode(phonyRule, causes.map(getDerivationTree).toSet)))
       }
-      //RealGoalNode(goalTuple, Set())
+
+      // RealGoalNode(goalTuple, Set())
+
     } else { // goalTuple is positive
+
       if (isInEDB(goalTuple)) {
+
         logger.debug(s"Found $goalTuple in EDB")
         RealGoalNode(goalTuple, Set.empty)
+
       } else if (ruleFirings.isEmpty && tupleWasDerived) {
+
         throw new IllegalStateException(s"Couldn't find rules to explain derivation of $goalTuple")
+
       } else {
+
         val ruleNodes = ruleFirings.map {
           case (provRule, bindings) =>
             val (positiveGoals, negativeGoals) = ruleFiringToSubgoals(provRule, bindings)
@@ -120,6 +136,7 @@ class ProvenanceReader(
             }
             Set(RuleNode(provRule, subgoals.map(getDerivationTree).toSet))
         }
+
         RealGoalNode(goalTuple, ruleNodes.flatten.toSet)
       }
     }
@@ -208,17 +225,16 @@ class ProvenanceReader(
   }
 
   private def isInEDB(goalTuple: GoalTuple): Boolean = {
+
     program.facts.filter(_.tableName == goalTuple.table).exists { fact =>
       val list = fact.cols.map {
         case IntLiteral(i) => i.toString
         case StringLiteral(s) => s
-        case v => throw new IllegalStateException(
-          s"Facts shouldn't contain aggregates, expressions, or variables, but found $v")
+        case v => throw new IllegalStateException(s"Facts shouldn't contain aggregates, expressions, or variables, but found $v")
       }
       matchesPattern(goalTuple.cols)(list)
     }
   }
-
 }
 
 case class DependsInfo(from: Predicate, to: Predicate, nonmonotonic: Boolean, temporality: Option[Time])

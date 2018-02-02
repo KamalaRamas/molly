@@ -126,8 +126,7 @@ case class RealGoalNode(
     BFAndNode(BFLiteral(ownImportantClock), memoBooleanFormula(pRules.toList))
   }
 
-  lazy val memoBooleanFormula: List[RuleNode] => BFNode[(String, String, Int)] =
-    Memo.mutableHashMapMemo(makeBooleanFormula(_))
+  lazy val memoBooleanFormula: List[RuleNode] => BFNode[(String, String, Int)] = Memo.mutableHashMapMemo(makeBooleanFormula(_))
 
   def makeBooleanFormula(rules: List[RuleNode]): BFNode[(String, String, Int)] = {
 

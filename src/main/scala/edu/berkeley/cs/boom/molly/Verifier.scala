@@ -38,15 +38,13 @@ case class Run(
 /**
  * Implements Molly's main forwards-backwards verification loop.
  *
- * @param failureSpec a description of possible failure scenarios that the verifier is allowed
- *                    to consider
+ * @param failureSpec a description of possible failure scenarios that the verifier is allowed to consider
  * @param program the program to verify
  * @param solver the solver to use (either Z3 or SAT4J)
  * @param causalOnly TODO(josh): Document this
  * @param useSymmetry if true, use symmetry analysis to prune the exploration of failure scenarios
  *                    that are isomorphic to ones that we have already considered
- * @param negativeSupport if true, explore beneath negative subgoals when constructing provenance
- *                        trees
+ * @param negativeSupport if true, explore beneath negative subgoals when constructing provenance trees
  * @param metricRegistry a CodaHale metrics registry, for logging performance statistics
  */
 class Verifier(
@@ -208,12 +206,12 @@ class Verifier(
     val pres = model.tableAtTime("pre", failureSpec.eot).toSet
     val posts = model.tableAtTime("post", failureSpec.eot).toSet
 
-    logger.debug(s"FFG: $failureFreeGood.  PRE: $pres. ")
+    logger.debug(s"FFG: ${failureFreeGood}.  PRE: ${pres}. ")
 
     val diff = model.tableAtTime("pre", failureSpec.eot).toSet -- model.tableAtTime("post", failureSpec.eot).toSet
 
-    logger.warn(s"FFG: $failureFreeGood.  PRE: $pres. POST: $posts.")
-    logger.warn(s"FFG: Diff: $diff.")
+    logger.warn(s"FFG: ${failureFreeGood}.  PRE: ${pres}. POST: ${posts}.")
+    logger.warn(s"FFG: Diff: ${diff}.")
 
     ( //model.tableAtTime("post", failureSpec.eot).toSet == failureFreeGood ||
       //failureFreeGood.toList.forall(g => !pres.contains(g))
@@ -258,7 +256,10 @@ class Verifier(
 
     } else {
 
-      val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, provenance_orig)
+      val partialProvenance = provenanceReader.getDerivationTreesForTable("pre")
+      val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, partialProvenance)
+
+      // val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, provenance_orig)
 
       (run, Set.empty)
     }

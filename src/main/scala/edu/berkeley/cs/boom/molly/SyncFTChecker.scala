@@ -39,11 +39,11 @@ object SyncFTChecker extends LazyLogging {
     opt[String]('N', "nodes") text "a comma-separated list of nodes (required)" required () action { (x, c) => c.copy(nodes = x.split(',')) }
     opt[String]("solver") text "the solver to use ('z3' or 'sat4j' or 'ilp')" action { (x, c) => c.copy(solver = x) } validate { x => if (x != "z3" && x != "sat4j" && x != "ilp") failure("solver should be 'z3' or 'sat4j' or 'ilp'") else success }
     opt[String]("strategy") text "the search strategy ('sat', 'random' or 'pcausal')" action { (x, c) => c.copy(strategy = x) } validate { x => if (x != "sat" && x != "random" && x != "pcausal") failure("strategy should be 'sat', 'random', or 'pcausal'") else success }
-    opt[Unit]("use-symmetry") text "use symmetry to skip equivalent failure scenarios" action { (x, c) => c.copy(useSymmetry = true) }
-    opt[Unit]("prov-diagrams") text "generate provenance diagrams for each execution" action { (x, c) => c.copy(generateProvenanceDiagrams = true) }
-    opt[Unit]("disable-dot-rendering") text "disable automatic rendering of `dot` diagrams" action { (x, c) => c.copy(disableDotRendering = true) }
-    opt[Unit]("find-all-counterexamples") text "continue after finding the first counterexample" action { (x, c) => c.copy(findAllCounterexamples = true) }
-    opt[Unit]("negative-support") text "Negative support.  Slow, but necessary for completeness" action { (x, c) => c.copy(negativeSupport = true) }
+    opt[Unit]("use-symmetry") text "use symmetry to skip equivalent failure scenarios" action { (_, c) => c.copy(useSymmetry = true) }
+    opt[Unit]("prov-diagrams") text "generate provenance diagrams for each execution" action { (_, c) => c.copy(generateProvenanceDiagrams = true) }
+    opt[Unit]("disable-dot-rendering") text "disable automatic rendering of `dot` diagrams" action { (_, c) => c.copy(disableDotRendering = true) }
+    opt[Unit]("find-all-counterexamples") text "continue after finding the first counterexample" action { (_, c) => c.copy(findAllCounterexamples = true) }
+    opt[Unit]("negative-support") text "Disable negative support. Mind, that negative support is slow, but necessary for completeness." action { (_, c) => c.copy(negativeSupport = false) }
     arg[File]("<file>...") unbounded () minOccurs 1 text "Dedalus files" action { (x, c) => c.copy(inputPrograms = c.inputPrograms :+ x) }
   }
 
