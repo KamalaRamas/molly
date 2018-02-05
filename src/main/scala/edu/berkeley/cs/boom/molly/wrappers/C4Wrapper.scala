@@ -34,7 +34,7 @@ class C4Wrapper(name: String, program: Program)(implicit val metricRegistry: Met
         for ((time, facts) <- clockFactsByTime.toSeq.sortBy(_._1)) {
 
           val clockFactsProgram = C4CodeGenerator.generate(new Program(Nil, facts, Nil))
-          logger.debug(s"Installing clock facts for time $time:\n$clockFactsProgram")
+          logger.debug(s"Installing clock facts for time ${time}:\n${clockFactsProgram}")
           assert(C4Wrapper.libC4.c4_install_str(c4, clockFactsProgram) == 0)
         }
 

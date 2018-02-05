@@ -162,22 +162,15 @@ class Verifier(
 
     logger.debug("get messages")
     val messages = provenanceReader.messages
-    // println(s"\nMessages: ${messages}\n")
 
     logger.debug("GET TREES")
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
     logger.debug("done TREES")
 
-    // provenance.foreach { p =>
-    //   val tups = p.allTups
-    //   logger.debug("THIS prov, " + tups.toString)
-    // }
     logger.debug(s"Solving formula")
-    // logger.warn(s"all tups: $tups")
 
     val satModels = solver.solve(failureSpec, provenance, messages)
-    // println(s"\nSAT models: ${satModels}\n")
 
     val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, provenance_orig)
 
@@ -239,11 +232,6 @@ class Verifier(
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
 
-    //provenance.foreach{ p =>
-    //  val tups = p.allTups
-    //  logger.debug("THIS prov, " + tups.toString)
-    //}
-
     if (isGood(model)) {
 
       // This run may have used more channels than the original run; verify
@@ -258,10 +246,8 @@ class Verifier(
 
     } else {
 
-      val partialProvenance = provenanceReader.getDerivationTreesForTable("pre")
+      val partialProvenance = provenanceReader.getFailureDerivationForest(model.getAllTuples)
       val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, partialProvenance)
-
-      // val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, provenance_orig)
 
       (run, Set.empty)
     }

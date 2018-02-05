@@ -59,6 +59,36 @@ class ProvenanceReader(
     model.tableAtTime(goal, failureSpec.eot).map(GoalTuple(goal, _)).map(getPhonyDerivationTree)
   }
 
+  // getFailureDerivationForest returns a list of GoalNodes
+  // that together make up whatever provenance information
+  // we were able to extract from all valid GoalTuples of
+  // a failed execution.
+  // TODO: It might be advantageous in the future, to maintain
+  //       a hashmap containing any already explored GoalNode
+  //       from calls to getDerivationTree of prior nodes.
+  //       By that, we could save exploring them again.
+  //       On the other hand, the Memo.mutableHashMapMemo might
+  //       already do a large part of such work.
+  def getFailureDerivationForest(goals: List[GoalTuple]): List[GoalNode] = {
+
+    // Build derivation tree for each individual GoalTuple.
+    // If that process throws any exception, e.g., due to
+    // an impossible GoalTuple, ignore those and move on
+    // to the next GoalTuple.
+    val prelimForest: List[Option[GoalNode]] = goals.map(
+      goal =>
+        try {
+          Some(getDerivationTree(goal))
+        } catch {
+          case _: Throwable => None
+        }
+    )
+
+    // Eliminate any None element in prelimForest.
+    // Thus, only return Some elements.
+    prelimForest.flatten
+  }
+
   val messages: List[Message] = provTableManager.messages
 
   /**
@@ -71,9 +101,9 @@ class ProvenanceReader(
     val ruleFirings = findRuleFirings(goal)
     val internallyConsistent = matchingTuples.isEmpty == ruleFirings.isEmpty
 
-    assert(internallyConsistent, s"Tuple $goal found in table without derivation (or vice-versa)")
-    assert(matchingTuples.isEmpty, s"Found derivation ${matchingTuples(0)} of negative goal $goal")
-    assert(ruleFirings.isEmpty, s"Found rule firings $ruleFirings for negative goal $goal")
+    assert(internallyConsistent, s"Tuple ${goal} found in table without derivation (or vice-versa)")
+    assert(matchingTuples.isEmpty, s"Found derivation ${matchingTuples(0)} of negative goal ${goal}")
+    assert(ruleFirings.isEmpty, s"Found rule firings ${ruleFirings} for negative goal ${goal}")
   }
 
   private def buildPhonyDerivationTree(goalTuple: GoalTuple): PhonyGoalNode = {
@@ -124,7 +154,7 @@ class ProvenanceReader(
 
       } else if (ruleFirings.isEmpty && tupleWasDerived) {
 
-        throw new IllegalStateException(s"Couldn't find rules to explain derivation of $goalTuple")
+        throw new IllegalStateException(s"Couldn't find rules to explain derivation of ${goalTuple}")
 
       } else {
 
@@ -138,11 +168,9 @@ class ProvenanceReader(
             } else {
               positiveGoals.map(_.copy(negative = false))
             }
-            println(s"subgoals before: ${subgoalsUnfiltered}\n")
             val subgoals = subgoalsUnfiltered.filter {
               subgoal => !ignoreProvNodes.exists(subgoal.toString.contains)
             }
-            println(s"subgoals after: ${subgoals}\n")
             Set(RuleNode(provRule, subgoals.map(getDerivationTree).toSet))
         }
 
@@ -156,7 +184,7 @@ class ProvenanceReader(
    * @return (positiveGoals, negativeGoals)
    */
   private def ruleFiringToSubgoals(provRule: Rule, bindings: Map[String, String]): (Seq[GoalTuple], Seq[GoalTuple]) = {
-    logger.debug(s"Extracting subgoals from firing of ${provRule.head.tableName} with bindings $bindings")
+    logger.debug(s"Extracting subgoals from firing of ${provRule.head.tableName} with bindings ${bindings}")
     val time = bindings("NRESERVED").toInt
 
     val (negativePreds, positivePreds) = provRule.bodyPredicates.partition(_.notin)
@@ -169,8 +197,8 @@ class ProvenanceReader(
         predsWithAggVars.flatMap(predicateToGoal(bindings) _ andThen getAggregateSupport(time))
       predsWithoutAggVars.map(predicateToGoal(bindings)) ++ aggGoals
     }
-    logger.debug(s"Positive subgoals: $positiveGoals")
-    logger.debug(s"Negative subgoals: $negativeGoals")
+    logger.debug(s"Positive subgoals: ${positiveGoals}")
+    logger.debug(s"Negative subgoals: ${negativeGoals}")
     (positiveGoals, negativeGoals)
   }
 
@@ -245,7 +273,7 @@ class ProvenanceReader(
       val list = fact.cols.map {
         case IntLiteral(i) => i.toString
         case StringLiteral(s) => s
-        case v => throw new IllegalStateException(s"Facts shouldn't contain aggregates, expressions, or variables, but found $v")
+        case v => throw new IllegalStateException(s"Facts shouldn't contain aggregates, expressions, or variables, but found ${v}")
       }
       matchesPattern(goalTuple.cols)(list)
     }
