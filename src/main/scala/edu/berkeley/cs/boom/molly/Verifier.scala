@@ -232,6 +232,11 @@ class Verifier(
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
 
+    var prov = provenance_orig
+    if (provenance_orig.isEmpty) {
+      prov = provenanceReader.getFailureDerivationForest(model.getAllTuples)
+    }
+
     if (isGood(model)) {
 
       // This run may have used more channels than the original run; verify
@@ -240,14 +245,13 @@ class Verifier(
 
       val seed: Set[SolverVariable] = failureSpec.crashes ++ failureSpec.omissions
       val potentialCounterexamples = solver.solve(failureSpec, provenance, messages, seed).toSet -- Set(failureSpec)
-      val run = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, model, messages, provenance_orig)
+      val run = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, model, messages, prov)
 
       (run, potentialCounterexamples)
 
     } else {
 
-      val partialProvenance = provenanceReader.getFailureDerivationForest(model.getAllTuples)
-      val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, partialProvenance)
+      val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, prov)
 
       (run, Set.empty)
     }
