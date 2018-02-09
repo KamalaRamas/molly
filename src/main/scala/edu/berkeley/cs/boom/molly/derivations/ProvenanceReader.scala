@@ -14,6 +14,8 @@ import scalaz._
 import nl.grons.metrics.scala.InstrumentedBuilder
 import com.codahale.metrics.MetricRegistry
 import scala.collection.immutable._
+import scala.collection.mutable.Queue
+import scala.collection.mutable.ListBuffer
 
 object ProvenanceReader {
 
@@ -75,7 +77,7 @@ class ProvenanceReader(
     // If that process throws any exception, e.g., due to
     // an impossible GoalTuple, ignore those and move on
     // to the next GoalTuple.
-    val prelimForest: List[Option[GoalNode]] = goals.map(
+    val forest: List[Option[GoalNode]] = goals.map(
       goal =>
         try {
           Some(getDerivationTree(goal))
@@ -84,9 +86,40 @@ class ProvenanceReader(
         }
     )
 
-    // Eliminate any None element in prelimForest.
+    // Eliminate any None element in forest.
     // Thus, only return Some elements.
-    prelimForest.flatten
+    forest.flatten
+  }
+
+  def getFailureForestFromPost(goals: List[GoalNode]): List[GoalNode] = {
+
+    var goalsQueue: Queue[GoalNode] = Queue(goals: _*)
+    var forest: ListBuffer[GoalNode] = new ListBuffer[GoalNode]()
+
+    while (!goalsQueue.isEmpty) {
+
+      val cur: GoalNode = goalsQueue.dequeue
+
+      try {
+
+        val tupleNotDerivedInModel = !model.tables(cur.tuple.table).exists(matchesPattern(cur.tuple.cols))
+        val derivationNode = getDerivationTree(cur.tuple)
+
+        if ((tupleNotDerivedInModel) && (derivationNode.rules.isEmpty)) {
+          throw new IllegalStateException(s"Goal tuple not derived in model, we need to look deeper.")
+        }
+
+        forest += derivationNode
+
+      } catch {
+
+        case t: Throwable => {
+          cur.rules.flatMap(r => r.subgoals).map(el => goalsQueue.enqueue(el))
+        }
+      }
+    }
+
+    forest.toList
   }
 
   val messages: List[Message] = provTableManager.messages

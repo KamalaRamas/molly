@@ -72,6 +72,7 @@ class Verifier(
 
   private val failureFreeGood = failureFreeUltimateModel.tableAtTime("post", failureSpec.eot).toSet
   private val failureFreePre = failureFreeUltimateModel.tableAtTime("pre", failureSpec.eot).toSet
+  private var failureFreeProv: List[GoalNode] = _
 
   if (failureFreeGood.isEmpty && !failureFreePre.isEmpty) {
     throw new IllegalStateException("'post' was empty in the failure-free run")
@@ -166,6 +167,7 @@ class Verifier(
     logger.debug("GET TREES")
     val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
     val provenance = whichProvenance(provenanceReader, provenance_orig)
+    failureFreeProv = provenance_orig
     logger.debug("done TREES")
 
     logger.debug(s"Solving formula")
@@ -234,7 +236,7 @@ class Verifier(
 
     var prov = provenance_orig
     if (provenance_orig.isEmpty) {
-      prov = provenanceReader.getFailureDerivationForest(model.getAllTuples)
+      prov = provenanceReader.getFailureForestFromPost(this.failureFreeProv)
     }
 
     if (isGood(model)) {

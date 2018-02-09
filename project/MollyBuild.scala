@@ -1,7 +1,6 @@
 import sbt._
 import sbt.Keys._
 
-
 object BuildSettings {
   val buildSettings = Defaults.defaultSettings ++ Seq(
     organization := "edu.berkeley.cs.boom",
@@ -16,7 +15,6 @@ object BuildSettings {
     parallelExecution in Test := false
   )
 }
-
 
 object MollyBuild extends Build {
 
@@ -41,7 +39,7 @@ object MollyBuild extends Build {
         "io.argonaut" %% "argonaut" % "6.0.4",
         "org.ow2.sat4j" % "org.ow2.sat4j.core" % "2.3.5",
         "commons-io" % "commons-io" % "2.4",
-        "pl.project13.scala" %% "rainbow" % "0.2" exclude("org.scalatest", "scalatest_2.11"),
+        "pl.project13.scala" %% "rainbow" % "0.2" exclude ("org.scalatest", "scalatest_2.11"),
         // JGraphT is used for its UnionFind data structure, which we use in
         // the type inference algorithm:
         "org.jgrapht" % "jgrapht-core" % "0.9.0",
@@ -50,8 +48,9 @@ object MollyBuild extends Build {
         "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
         "com.github.tototoshi" %% "scala-csv" % "1.0.0",
         "com.lihaoyi" %% "pprint" % "0.3.6",
-        "com.github.nikita-volkov" % "sext" % "0.2.4"
-        //"com.github.vagm" %% "optimus" % "1.2.1"
+        "com.github.nikita-volkov" % "sext" % "0.2.4",
+        "com.typesafe.play" %% "play-json" % "2.6.7"
+      //"com.github.vagm" %% "optimus" % "1.2.1"
       )
     )
   ).dependsOn(scalaZ3)
