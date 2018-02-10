@@ -15,7 +15,7 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
         braces("rank=\"same\";" <+> ssep(goals.map(g => text("goal" + g.id)), comma <> space)) <@@>
         // Converting to a set of strings is an ugly trick to avoid adding duplicate edges:
         goals.flatMap(dotStatements).map(d => super.pretty(d)).toSet.map(text).foldLeft(empty)(_ <@@> _)
-    ) <> linebreak)
+    ) <> linebreak) <> linebreak
 
     super.pretty(dot)
   }
@@ -74,7 +74,7 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
               ) <> linebreak
             )
       ) <> linebreak
-    )
+    ) <> linebreak
 
     super.pretty(json)
   }

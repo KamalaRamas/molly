@@ -22,7 +22,7 @@ class ProvenanceSuite extends FunSuite with Matchers {
     val program =
       src |> parseProgram |> referenceClockRules |> splitAggregateRules |> addProvenanceRules |> failureFreeSpec.addClockFacts |> inferTypes
     val model = new C4Wrapper("prov_suite", program).run
-    val provReader = new ProvenanceReader(program, failureFreeSpec, model, negativeSupport)
+    val provReader = new ProvenanceReader(program, failureFreeSpec, model, negativeSupport, scala.collection.immutable.Seq())
 
     (model, provReader)
   }
