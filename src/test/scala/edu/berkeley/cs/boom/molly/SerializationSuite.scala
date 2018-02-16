@@ -13,6 +13,7 @@ import Explicitly._
 import edu.berkeley.cs.boom.molly.report._
 import scala.collection.mutable.{ ListBuffer, HashMap }
 
+@Slow
 class SerializationSuite extends PropSpec with TableDrivenPropertyChecks with Matchers {
 
   // Parsing of provenance JSON with Play JSON library.
