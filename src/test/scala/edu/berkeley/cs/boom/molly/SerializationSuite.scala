@@ -5,6 +5,8 @@ import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tags.Slow
 import org.scalatest.{ FlatSpec, Matchers, PropSpec }
 import java.io.File
+import java.nio.file.Files
+import scala.io.Source
 import com.codahale.metrics.MetricRegistry
 import play.api.libs.json._
 import play.api.libs.json.Reads._
@@ -138,8 +140,25 @@ class SerializationSuite extends PropSpec with TableDrivenPropertyChecks with Ma
         results.foreach {
           r =>
             {
+              // Create a new temporary directory to
+              // host the JSON files we generate for verification.
+              val tmpDir = Files.createTempDirectory("jsonProvTest").toFile()
+
+              // Run the JSON provenance serializer.
+              ProvenanceDiagramGenerator.generateAndWriteJSON(r.provenance, tmpDir, 999)
+
+              // Obtain all content from the generated file.
+              val tmpJSONFile = new File(tmpDir, "run_999_provenance.json")
+              val tmpJSONSource = Source.fromFile(tmpJSONFile)
+              val jsonData = tmpJSONSource.getLines.mkString("\n")
+
+              // Delete temporary files and directory.
+              tmpJSONSource.close()
+              tmpJSONFile.delete()
+              tmpDir.delete()
+
               val dotProv = ProvenanceDiagramGenerator.generateDot(r.provenance)
-              val jsonProv = Json.parse(ProvenanceDiagramGenerator.generateJSON(r.provenance))
+              val jsonProv = Json.parse(jsonData)
 
               val parsedDot: DotProvData = parseDot(dotProv)
               val parsedJSON: ProvData = jsonProv.as[ProvData]
@@ -183,6 +202,10 @@ class SerializationSuite extends PropSpec with TableDrivenPropertyChecks with Ma
               parsedJSON.goals should have size parsedDot.goals.size
               parsedJSON.rules should have size parsedDot.rules.size
               parsedJSON.edges should have size parsedDot.edges.size
+
+              parsedJSON.goals should have size 0
+              parsedJSON.rules should have size 0
+              parsedJSON.edges should have size 0
             }
         }
 

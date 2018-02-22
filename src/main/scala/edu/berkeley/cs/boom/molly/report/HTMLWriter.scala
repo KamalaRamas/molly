@@ -29,8 +29,8 @@ object HTMLWriter {
 
   private def writeGraphviz(dot: String, outputDirectory: File, filename: String) = {
 
-    val dotFile = new File(outputDirectory, s"$filename.dot")
-    val svgFile = new File(outputDirectory, s"$filename.svg")
+    val dotFile = new File(outputDirectory, s"${filename}.dot")
+    val svgFile = new File(outputDirectory, s"${filename}.svg")
     FileUtils.write(dotFile, dot)
 
     new Runnable() {
@@ -79,12 +79,9 @@ object HTMLWriter {
       if (generateProvenanceDiagrams) {
 
         val renderProvDot = writeGraphviz(ProvenanceDiagramGenerator.generateDot(run.provenance), outputDirectory, s"run_${run.iteration}_provenance")
-        val renderProvJSON = writeJSON(ProvenanceDiagramGenerator.generateJSON(run.provenance), outputDirectory, s"run_${run.iteration}_provenance")
+        ProvenanceDiagramGenerator.generateAndWriteJSON(run.provenance, outputDirectory, run.iteration)
 
-        if (!disableDotRendering) {
-          executor.submit(renderProvDot)
-          executor.submit(renderProvJSON)
-        }
+        if (!disableDotRendering) executor.submit(renderProvDot)
       }
     }
 
