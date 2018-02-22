@@ -63,7 +63,7 @@ class SerializationSuite extends PropSpec with TableDrivenPropertyChecks with Ma
   private def parseDot(input: String): DotProvData = {
 
     val regStart = "digraph\\sdataflow\\s\\{\\s{0,}\\{rank=\"same\";\\s(goal[0-9]+,\\s){0,}goal([0-9]+)\\}\\s{0,}".r
-    val regLine = "\\s\\[.+\\];\n\\s{4}".r
+    val regLine = "\\s\\[.+\\];\n\\s{4,5}".r
 
     // Remove graph definition at beginning
     // and final newline and closing curly bracket.
@@ -81,7 +81,7 @@ class SerializationSuite extends PropSpec with TableDrivenPropertyChecks with Ma
 
         if (line.contains("goal")) {
           provData.goals += (line -> true)
-        } else {
+        } else if (line.contains("rule")) {
           provData.rules += (line -> true)
         }
       }
@@ -142,23 +142,28 @@ class SerializationSuite extends PropSpec with TableDrivenPropertyChecks with Ma
             {
               // Create a new temporary directory to
               // host the JSON files we generate for verification.
-              val tmpDir = Files.createTempDirectory("jsonProvTest").toFile()
+              val tmpDir = Files.createTempDirectory("provTest").toFile()
 
-              // Run the JSON provenance serializer.
+              // Run the dot and JSON provenance serializer.
+              ProvenanceDiagramGenerator.generateAndWriteDot(r.provenance, tmpDir, 999)
               ProvenanceDiagramGenerator.generateAndWriteJSON(r.provenance, tmpDir, 999)
 
-              // Obtain all content from the generated file.
+              // Obtain all content from the generated dot file.
+              val tmpDotFile = new File(tmpDir, "run_999_provenance.dot")
+              val tmpDotSource = Source.fromFile(tmpDotFile)
+              val dotProv = tmpDotSource.getLines.mkString("\n")
+
+              // Obtain all content from the generated JSON file.
               val tmpJSONFile = new File(tmpDir, "run_999_provenance.json")
               val tmpJSONSource = Source.fromFile(tmpJSONFile)
-              val jsonData = tmpJSONSource.getLines.mkString("\n")
+              val jsonProv = Json.parse(tmpJSONSource.getLines.mkString("\n"))
 
               // Delete temporary files and directory.
+              tmpDotSource.close()
               tmpJSONSource.close()
+              tmpDotFile.delete()
               tmpJSONFile.delete()
               tmpDir.delete()
-
-              val dotProv = ProvenanceDiagramGenerator.generateDot(r.provenance)
-              val jsonProv = Json.parse(jsonData)
 
               val parsedDot: DotProvData = parseDot(dotProv)
               val parsedJSON: ProvData = jsonProv.as[ProvData]

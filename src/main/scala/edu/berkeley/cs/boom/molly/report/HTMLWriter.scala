@@ -42,17 +42,6 @@ object HTMLWriter {
     }
   }
 
-  private def writeJSON(json: String, outputDirectory: File, fileName: String) = {
-
-    val runJSONFile = new File(outputDirectory, s"${fileName}.json")
-    FileUtils.write(runJSONFile, json)
-
-    new Runnable() {
-
-      def run() {}
-    }
-  }
-
   def write(outputDirectory: File, originalPrograms: List[File], runs: EphemeralStream[Run], generateProvenanceDiagrams: Boolean, disableDotRendering: Boolean = false) = {
 
     outputDirectory.mkdirs()
@@ -78,10 +67,10 @@ object HTMLWriter {
 
       if (generateProvenanceDiagrams) {
 
-        val renderProvDot = writeGraphviz(ProvenanceDiagramGenerator.generateDot(run.provenance), outputDirectory, s"run_${run.iteration}_provenance")
+        val dotRunnable = ProvenanceDiagramGenerator.generateAndWriteDot(run.provenance, outputDirectory, run.iteration)
         ProvenanceDiagramGenerator.generateAndWriteJSON(run.provenance, outputDirectory, run.iteration)
 
-        if (!disableDotRendering) executor.submit(renderProvDot)
+        if (!disableDotRendering) executor.submit(dotRunnable)
       }
     }
 
