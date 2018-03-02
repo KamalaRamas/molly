@@ -125,20 +125,20 @@ client_known(M, C)@next :-
 // Primry promotion, with the node with the max nodieid being promoted.
 // This is the reverse order to the order in which staggered replica 
 // writes are propagated.
-promote(G, Node) :-	
-			group(G, G),
-			max_nodeid(G, Nodeid),              // max_nodeid is used to promote processes in the 
-			nodeid(G, Node, Nodeid),            // reverse order that replica_writes are staggered
-			primary(G, Primary),
-			Primary !=Node,
-            notin promoted(G, Node);
+//promote(G, Node) :-	
+//			group(G, G),
+//			max_nodeid(G, Nodeid),              // max_nodeid is used to promote processes in the 
+//			nodeid(G, Node, Nodeid),            // reverse order that replica_writes are staggered
+//			primary(G, Primary),
+//			Primary !=Node,
+//            notin promoted(G, Node);
 
-promote(G, Node) :- 	
-			group(G, G),
-			max_nodeid(G, Nodeid),
-			nodeid(G, Node, Nodeid),
-			notin primary(G, Node),
-            notin promoted(G, Node);
+//promote(G, Node) :- 	
+//			group(G, G),
+//			max_nodeid(G, Nodeid),
+//			nodeid(G, Node, Nodeid),
+//			notin primary(G, Node),
+//            notin promoted(G, Node);
 
 // The "promoted" relation has been introduced to ensure that "promote" message is sent exactly once
 promoted(G, Node)@next :-

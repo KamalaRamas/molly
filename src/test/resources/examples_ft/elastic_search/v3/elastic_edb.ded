@@ -40,12 +40,18 @@ primary("b", "c")@1;
 primary("c", "c")@1;
 primary("C", "c")@1;
 
+// Added to simulate change in primary at time step 4
+update_primary("G", "b")@4;
+update_primary("a", "b")@4;
+update_primary("b", "b")@4;
+update_primary("C", "b")@4;
+
 // Primary node is the first node to be part of ISR
 member("G", "c")@1;
 
 // write stream.  
 write_request_outgoing("C", "Data1", "c", 1)@2;
-write_request_outgoing("C", "Data2", "b", 2)@7;
+write_request_outgoing("C", "Data2", "b", 2)@5;
 
 // Maintain sequence numbers
 seq("a", 1)@1;
