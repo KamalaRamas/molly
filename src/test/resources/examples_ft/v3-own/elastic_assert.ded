@@ -1,0 +1,68 @@
+include "elastic_search_with_seq.ded";
+
+// DURABILITY INVARIANT
+pre("Durability", Data, Seq) :-
+				ack(C, Data, _, _, Seq);           // If client is acknowledged
+
+post("Durability", Data, Seq, CntData, CntNodes) :-
+				ack(C, Data, _, _, Seq),
+				num_data_seq("G", Data, Seq, CntData),
+				num_uncrashed("G", CntNodes),
+				CntData == CntNodes;
+
+leader_history(G, Node, Data, Seq) :-
+				all_nodes_g(G, Node),
+				history(Node, Data, _, Seq),
+				Node != "G";
+
+num_data_seq(G, Data, Seq, count<Node>) :-
+				leader_history(G, Node, Data, Seq),
+				uncrashed_nodes(G, Node),
+				Node != "G";
+
+num_uncrashed(G, count<Node>) :-
+				uncrashed_nodes(G, Node);
+
+
+
+// AGREEMENT INVARIANT
+// pre("Consistency", X, Seq) :-
+//                 history_max(Node, Seq),          // On some node, the maximum sequence number is "Seq"
+//                 history(Node, X, _, Seq),        // and payload is "X"
+//                 uncrashed_nodes("G", Node),
+//                 Node != "G",
+//                 notin clients(Node);
+
+// post("Consistency", X, Seq) :-
+//                 history_max(Node, Seq),
+//                 history(Node, X, _, Seq),
+//                 uncrashed_nodes("G", Node),
+//                 Node != "G",
+//                 notin clients(Node),
+//                 notin no_match_exists(Node, Seq),   // then there does not exist a node with a lower seq #
+//                 notin no_payload_match(Node, X);    // or a node for which sequence numbers match, but payloads dont
+
+// no_match_exists(Node, Seq) :-
+//                 history_max(Node, Seq),
+//                 uncrashed_nodes("G", Node),
+//                 uncrashed_nodes("G", Other),
+//                 Node != Other,
+//                 notin history_max(Other, Seq),      // check that max seq # on all nodes is equal
+//                 Node != "G",
+//                 Other != "G",
+//                 notin clients(Node),
+//                 notin clients(Other);
+
+// no_payload_match(Node, X1) :-
+//                 history_max(Node, Seq),
+//                 history_max(Other, Seq),            //      Assuming max seq # are equal,
+//                 history(Node, X1, _, Seq),          // check that payloads on all nodes are same
+//                 history(Other, X2, _, Seq),
+//                 X1 != X2,
+//                 uncrashed_nodes("G", Node),
+//                 uncrashed_nodes("G", Other),
+//                 Node != Other,
+//                 Node != "G",
+//                 Other != "G",
+//                 notin clients(Node),
+//                 notin clients(Other);
