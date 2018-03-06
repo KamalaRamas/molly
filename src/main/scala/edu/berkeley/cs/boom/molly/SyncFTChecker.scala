@@ -125,7 +125,7 @@ object SyncFTChecker extends LazyLogging {
       HTMLWriter.write(new File(outputDir), Nil, results, config.generateProvenanceDiagrams, config.disableDotRendering)
 
       println("-" * 80)
-      metricsReporter.report() // This appears after the HTML writing due to laziness
+      metricsReporter.report()
       println("-" * 80)
 
       firstCounterExample match {

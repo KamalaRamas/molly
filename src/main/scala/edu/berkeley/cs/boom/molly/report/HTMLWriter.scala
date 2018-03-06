@@ -54,7 +54,7 @@ object HTMLWriter {
     // Unfortunately, Argonaut doesn't seem to support streaming JSON writing, hence this code:
     var first: Boolean = true
     runsFile.print("[\n")
-    val executor = Executors.newFixedThreadPool(4) // Some parallelism when writing out DOT files
+    val executor = Executors.newFixedThreadPool(8) // Some parallelism when writing out DOT files
 
     for (run <- runs) {
 
@@ -67,10 +67,17 @@ object HTMLWriter {
 
       if (generateProvenanceDiagrams) {
 
-        val dotRunnable = ProvenanceDiagramGenerator.generateAndWriteDot(run.provenance, outputDirectory, run.iteration)
-        ProvenanceDiagramGenerator.generateAndWriteJSON(run.provenance, outputDirectory, run.iteration)
+        // "pre" table provenance.
+        val dotRunPre = ProvenanceDiagramGenerator.generateAndWriteDot("pre", run.preProv, outputDirectory, run.iteration)
+        ProvenanceDiagramGenerator.generateAndWriteJSON("pre", run.preProv, outputDirectory, run.iteration)
 
-        if (!disableDotRendering) executor.submit(dotRunnable)
+        if (!disableDotRendering) executor.submit(dotRunPre)
+
+        // "post" table provenance.
+        val dotRunPost = ProvenanceDiagramGenerator.generateAndWriteDot("post", run.postProv, outputDirectory, run.iteration)
+        ProvenanceDiagramGenerator.generateAndWriteJSON("post", run.postProv, outputDirectory, run.iteration)
+
+        if (!disableDotRendering) executor.submit(dotRunPost)
       }
     }
 

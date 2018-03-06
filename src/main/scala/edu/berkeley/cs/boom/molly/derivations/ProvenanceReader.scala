@@ -91,7 +91,7 @@ class ProvenanceReader(
     forest.flatten
   }
 
-  def getFailureForestFromPost(goals: List[GoalNode]): List[GoalNode] = {
+  def getFailureForestFromGoals(goals: List[GoalNode]): List[GoalNode] = {
 
     var goalsQueue: Queue[GoalNode] = Queue(goals: _*)
     var forest: ListBuffer[GoalNode] = new ListBuffer[GoalNode]()

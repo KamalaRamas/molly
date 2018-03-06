@@ -51,13 +51,13 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
   /**
    * generateAndWriteDot
    */
-  def generateAndWriteDot(goals: List[GoalNode], outDir: File, iteration: Int): Runnable = {
+  def generateAndWriteDot(table: String, goals: List[GoalNode], outDir: File, iteration: Int): Runnable = {
 
-    val goalsFileName = new File(outDir, s"run_${iteration}_provenance_goals.partial.dot")
-    val rulesFileName = new File(outDir, s"run_${iteration}_provenance_rules.partial.dot")
-    val edgesFileName = new File(outDir, s"run_${iteration}_provenance_edges.partial.dot")
-    val provFileName = new File(outDir, s"run_${iteration}_provenance.dot")
-    val svgFileName = new File(outDir, s"run_${iteration}_provenance.svg")
+    val goalsFileName = new File(outDir, s"run_${iteration}_${table}_provenance_goals.partial.dot")
+    val rulesFileName = new File(outDir, s"run_${iteration}_${table}_provenance_rules.partial.dot")
+    val edgesFileName = new File(outDir, s"run_${iteration}_${table}_provenance_edges.partial.dot")
+    val provFileName = new File(outDir, s"run_${iteration}_${table}_provenance.dot")
+    val svgFileName = new File(outDir, s"run_${iteration}_${table}_provenance.svg")
 
     // Open a new file for goals, rules, and edges
     // with the append flag set to true.
@@ -265,12 +265,12 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
   /**
    * generateAndWriteJSON
    */
-  def generateAndWriteJSON(goals: List[GoalNode], outDir: File, iteration: Int) = {
+  def generateAndWriteJSON(table: String, goals: List[GoalNode], outDir: File, iteration: Int) = {
 
-    val goalsFileName = new File(outDir, s"run_${iteration}_provenance_goals.partial.json")
-    val rulesFileName = new File(outDir, s"run_${iteration}_provenance_rules.partial.json")
-    val edgesFileName = new File(outDir, s"run_${iteration}_provenance_edges.partial.json")
-    val provFileName = new File(outDir, s"run_${iteration}_provenance.json")
+    val goalsFileName = new File(outDir, s"run_${iteration}_${table}_provenance_goals.partial.json")
+    val rulesFileName = new File(outDir, s"run_${iteration}_${table}_provenance_rules.partial.json")
+    val edgesFileName = new File(outDir, s"run_${iteration}_${table}_provenance_edges.partial.json")
+    val provFileName = new File(outDir, s"run_${iteration}_${table}_provenance.json")
 
     // Open a new file for goals, rules, and edges
     // with the append flag set to true.
@@ -439,9 +439,9 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
     edgesFile.close()
 
     // Get file sizes in bytes of all partial files.
-    val goalsPartialLen: Long = goalsFileName.length() - 1
-    val rulesPartialLen: Long = rulesFileName.length() - 1
-    val edgesPartialLen: Long = edgesFileName.length() - 1
+    val goalsPartialLen: Long = if ((goalsFileName.length() - 1) >= 0) (goalsFileName.length() - 1) else 0
+    val rulesPartialLen: Long = if ((rulesFileName.length() - 1) >= 0) (rulesFileName.length() - 1) else 0
+    val edgesPartialLen: Long = if ((edgesFileName.length() - 1) >= 0) (edgesFileName.length() - 1) else 0
 
     // Truncate all partial files by their size - 1 (removing trailing ',').
     val goalsPartialStream = new FileOutputStream(goalsFileName, true).getChannel()

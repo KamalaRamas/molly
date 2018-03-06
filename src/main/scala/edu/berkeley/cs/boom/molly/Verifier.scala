@@ -33,7 +33,8 @@ case class Run(
   failureSpec: FailureSpec,
   model: UltimateModel,
   messages: List[Message],
-  provenance: List[GoalNode])
+  preProv: List[GoalNode],
+  postProv: List[GoalNode])
 
 /**
  * Implements Molly's main forwards-backwards verification loop.
@@ -72,7 +73,8 @@ class Verifier(
 
   private val failureFreeGood = failureFreeUltimateModel.tableAtTime("post", failureSpec.eot).toSet
   private val failureFreePre = failureFreeUltimateModel.tableAtTime("pre", failureSpec.eot).toSet
-  private var failureFreeProv: List[GoalNode] = _
+  private var failureFreePreProv: List[GoalNode] = _
+  private var failureFreePostProv: List[GoalNode] = _
 
   if (failureFreeGood.isEmpty && !failureFreePre.isEmpty) {
     throw new IllegalStateException("'post' was empty in the failure-free run")
@@ -94,7 +96,7 @@ class Verifier(
 
     val provenanceReader = new ProvenanceReader(failureFreeProgram, failureFreeSpec, failureFreeUltimateModel, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
-    val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, Nil)
+    val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, Nil, Nil)
 
     failureFreeRun ##:: doRandom
   }
@@ -143,10 +145,10 @@ class Verifier(
     val messages = provenanceReader.messages
 
     if (isGood(model)) {
-      Run(runId.getAndIncrement, RunStatus("success"), randomSpec, model, messages, Nil)
+      Run(runId.getAndIncrement, RunStatus("success"), randomSpec, model, messages, Nil, Nil)
     } else {
       logger.warn("Found counterexample: " + randomSpec)
-      Run(runId.getAndIncrement, RunStatus("failure"), randomSpec, model, messages, Nil)
+      Run(runId.getAndIncrement, RunStatus("failure"), randomSpec, model, messages, Nil, Nil)
     }
   }
 
@@ -165,16 +167,18 @@ class Verifier(
     val messages = provenanceReader.messages
 
     logger.debug("GET TREES")
-    val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
-    val provenance = whichProvenance(provenanceReader, provenance_orig)
-    failureFreeProv = provenance_orig
+    val preProvOrig = provenanceReader.getDerivationTreesForTable("pre")
+    val postProvOrig = provenanceReader.getDerivationTreesForTable("post")
+    val provenance = whichProvenance(provenanceReader, postProvOrig)
+    this.failureFreePreProv = preProvOrig
+    this.failureFreePostProv = postProvOrig
     logger.debug("done TREES")
 
     logger.debug(s"Solving formula")
 
     val satModels = solver.solve(failureSpec, provenance, messages)
 
-    val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, provenance_orig)
+    val failureFreeRun = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, failureFreeUltimateModel, messages, preProvOrig, postProvOrig)
 
     failureFreeRun ##:: doVerify(satModels.iterator)
   }
@@ -231,12 +235,18 @@ class Verifier(
 
     val provenanceReader = new ProvenanceReader(failProgram, failureSpec, model, negativeSupport, ignoreProvNodes)
     val messages = provenanceReader.messages
-    val provenance_orig = provenanceReader.getDerivationTreesForTable("post")
-    val provenance = whichProvenance(provenanceReader, provenance_orig)
+    val preProvOrig = provenanceReader.getDerivationTreesForTable("pre")
+    val postProvOrig = provenanceReader.getDerivationTreesForTable("post")
+    val provenance = whichProvenance(provenanceReader, postProvOrig)
 
-    var prov = provenance_orig
-    if (provenance_orig.isEmpty) {
-      prov = provenanceReader.getFailureForestFromPost(this.failureFreeProv)
+    var preProv = preProvOrig
+    if (preProvOrig.isEmpty) {
+      preProv = provenanceReader.getFailureForestFromGoals(this.failureFreePreProv)
+    }
+
+    var postProv = postProvOrig
+    if (postProvOrig.isEmpty) {
+      postProv = provenanceReader.getFailureForestFromGoals(this.failureFreePostProv)
     }
 
     if (isGood(model)) {
@@ -247,13 +257,13 @@ class Verifier(
 
       val seed: Set[SolverVariable] = failureSpec.crashes ++ failureSpec.omissions
       val potentialCounterexamples = solver.solve(failureSpec, provenance, messages, seed).toSet -- Set(failureSpec)
-      val run = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, model, messages, prov)
+      val run = Run(runId.getAndIncrement, RunStatus("success"), failureSpec, model, messages, preProv, postProv)
 
       (run, potentialCounterexamples)
 
     } else {
 
-      val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, prov)
+      val run = Run(runId.getAndIncrement, RunStatus("failure"), failureSpec, model, messages, preProv, postProv)
 
       (run, Set.empty)
     }
