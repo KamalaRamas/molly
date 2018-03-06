@@ -1,11 +1,3 @@
-// View of global node "G" on the network.
-all_nodes_g("G", "a")@1;
-all_nodes_g("G", "b")@1;
-all_nodes_g("G", "c")@1;
-all_nodes_g("G", "C")@1;
-all_nodes_g("G", "G")@1;
-all_nodes_g(G, Node)@next :- all_nodes_g(G, Node);
-
 // replica init
 // The "group" relation specifies all prcesses that can ever be part of the group
 group("a", "G")@1;
@@ -53,7 +45,6 @@ update_primary("G", "b")@4;
 update_primary("a", "b")@4;
 update_primary("b", "b")@4;
 update_primary("C", "b")@4;
-// seq("b", 2)@5;
 
 // Primary node is the first node to be part of ISR
 member("G", "c")@1;

@@ -4,20 +4,20 @@ include "elastic_search_with_seq.ded";
 pre("Durability", Data, Seq) :-
 				ack(C, Data, _, _, Seq);           // If client is acknowledged
 
-post("Durability", Data, Seq, CntData, CntNodes) :-
+post("Durability", Data, Seq) :-
 				ack(C, Data, _, _, Seq),
 				num_data_seq("G", Data, Seq, CntData),
 				num_uncrashed("G", CntNodes),
 				CntData == CntNodes;
 
-leader_history(G, Node, Data, Seq) :-
-				all_nodes_g(G, Node),
-				history(Node, Data, _, Seq),
-				Node != "G";
-
 num_data_seq(G, Data, Seq, count<Node>) :-
 				leader_history(G, Node, Data, Seq),
 				uncrashed_nodes(G, Node),
+				Node != "G";
+
+leader_history(G, Node, Data, Seq) :-
+				member(G, Node),
+				history(Node, Data, _, Seq),
 				Node != "G";
 
 num_uncrashed(G, count<Node>) :-
