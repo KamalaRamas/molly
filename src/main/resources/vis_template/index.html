@@ -38,9 +38,12 @@
     <h2>Runs</h2>
     <span class="help-block">Click on a run to see more information</span>
     <div id="runs-table"></div>
+    <h2>Space-Time Diagram</h2>
     <div id="spacetime"><img src="" class="img-responsive"></div>
-    <h2>Provenance</h2>
-    <div id="provenance"><img src="" class="img-responsive"></div>
+    <h2>Pre Table Provenance</h2>
+    <div id="pre-provenance"><img src="" class="img-responsive"></div>
+    <h2>Post Table Provenance</h2>
+    <div id="post-provenance"><img src="" class="img-responsive"></div>
     <h2>Table Contents</h2>
     <div id="details-area">
         <div id="table-dumps"></div>
@@ -48,8 +51,10 @@
 </div>
 
 <script>
+
 var runs = [];
 var selectedRun = null;
+
 d3.json("runs.json", function(error, json) {
     var tableDumps = d3.select("#table-dumps");
 
@@ -111,19 +116,27 @@ d3.json("runs.json", function(error, json) {
     };
 
     var displaySelectedRun = function(newRun) {
+
         tableDumps.selectAll("div").data([]).exit().remove();
+
         d3.select("#spacetime img").attr("src", "run_" + (newRun.iteration) + "_spacetime.svg");
-        d3.select("#provenance img").attr("src", "run_" + (newRun.iteration) + "_provenance.svg");
+        d3.select("#pre-provenance img").attr("src", "run_" + (newRun.iteration) + "_pre_provenance.svg");
+        d3.select("#post-provenance img").attr("src", "run_" + (newRun.iteration) + "_post_provenance.svg");
+
         var nonProvTables = d3.entries(newRun.model.tables).filter(function(t) { return t.key != "clock" && t.key.indexOf("_prov") == -1;});
+
         var tableDivs = tableDumps.selectAll("div")
                 .data(nonProvTables)
                 .enter().append("div");
+
         tableDivs.selectAll("h3")
                 .data(function(t) { return [t]; })
                 .enter().append("h3").text(function (t) { return t.key; });
+
         var tables = tableDivs.selectAll("table")
                 .data(function(t) { return [t]; })
                 .enter().append("table").attr("class", "table table-condensed table-bordered");
+
         var tBodies = tables.selectAll("tbody")
                 .data(function (t) {
                     return d3.nest().key(function(d) {
@@ -133,10 +146,12 @@ d3.json("runs.json", function(error, json) {
                     .entries(t.value);
                 })
                 .enter().append("tbody");
+
         var rows = tBodies.selectAll("tr").data(function (t) {
                     return t.values.sort(d3.ascending);
                 })
                 .enter().append("tr");
+
         var cols = rows.selectAll("td").data(function(d) { return d; })
                 .enter().append("td")
                 .text(function(d) { return d; });
