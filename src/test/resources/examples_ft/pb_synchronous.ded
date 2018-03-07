@@ -1,0 +1,68 @@
+// Network relationships.
+
+network("a", "a")@1;
+network("a", "b")@1;
+network("a", "c")@1;
+network("b", "a")@1;
+network("b", "b")@1;
+network("b", "c")@1;
+network("c", "a")@1;
+network("c", "b")@1;
+network("c", "c")@1;
+network(Node, Other)@next :- network(Node, Other);
+
+primary("a", "a")@1;
+primary(Node, Prim)@next :- primary(Node, Prim);
+
+replica("a", "b")@1;
+replica("a", "c")@1;
+replica(Prim, Rep)@next :- replica(Prim, Rep);
+
+conn_out("C", "a")@1;
+conn_out("a", "C")@1;
+conn_out(Cli, Prim)@next :- conn_out(Cli, Prim);
+
+
+// Trigger start.
+begin("C", "foo")@1;
+
+
+// Protocol behavior.
+
+// Client sends request to primary.
+request(Prim, Pload, Cli)@async :- begin(Cli, Pload), conn_out(Cli, Prim);
+
+
+// Primary replicates to replicas and logs the replication.
+replicate(Rep, Pload, Prim, Cli)@async :- request(Prim, Pload, Cli), primary(Prim, Prim), replica(Prim, Rep);
+replicate_log(Prim, Rep, Pload) :- replicate(Rep, Pload, Prim, _);
+replicate_log(Prim, Rep, Pload)@next :- replicate_log(Prim, Rep, Pload);
+
+// Nodes in the network persist received requests.
+log(Prim, Pload) :- request(Prim, Pload, Cli);
+log(Rep, Pload) :- replicate(Rep, Pload, _, _);
+log(Rep, Pload)@next :- log(Rep, Pload);
+
+// Ack from replicas to primary.
+replicate_ack(Prim, Rep, Pload, Cli)@async :- log(Rep, Pload), replicate(Rep, Pload, Prim, Cli);
+replicate_acked(Prim, Rep, Pload) :- replicate_ack(Prim, Rep, Pload, _);
+replicate_acked(Prim, Rep, Pload)@next :- replicate_acked(Prim, Rep, Pload);
+
+missing_replicate_acked(Prim, Rep, Pload) :- replicate_log(Prim, Rep, Pload), notin replicate_acked(Prim, Rep, Pload);
+
+// Ack to client (Async P/B).
+//   * Incorrect:
+//       - ack(Cli, Prim, Pload)@async :- request(Prim, Pload, Cli);
+ack(Cli, Prim, Pload)@async :- conn_out(Prim, Cli), replicate_log(Prim, Rep, Pload), notin missing_replicate_acked(Prim, Rep, Pload), notin acked(Cli, Prim, Pload);
+acked(Cli, Prim, Pload) :- ack(Cli, Prim, Pload);
+acked(Cli, Prim, Pload)@next :- acked(Cli, Prim, Pload);
+
+
+// Invariants.
+
+missing_log(Rep, Pload) :- log(Other, Pload), network(Other, Rep), notin log(Rep, Pload);
+
+// E2E property: Any time we ACK a payload to a client, we expect
+// that payload to be persisted on all correct replicas.
+pre(Pload) :- acked(Cli, Prim, Pload);
+post(Pload) :- log(Node, Pload), notin crash(Node, Node, _), notin missing_log(_, Pload);
