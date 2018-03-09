@@ -23,6 +23,14 @@ conn_out("a", "C")@1;
 conn_out(Cli, Prim)@next :- conn_out(Cli, Prim);
 
 
+// System state tables (counting rows).
+num_log(Prim, Pload, count<Node>) :- primary(Prim, Prim), log(Node, Pload);
+num_uncrashed(Prim, count<Node>) :- primary(Prim, Prim), network(Prim, Node), notin crash(Prim, Node, _);
+num_replicate_log(Prim, Pload, count<Rep>) :- primary(Prim, Prim), replicate_log(Prim, Rep, Pload, _);
+num_replicate_acked(Prim, Pload, count<Rep>) :- primary(Prim, Prim), replicate_acked(Prim, Rep, Pload);
+num_acked(Cli, Pload, count<Prim>) :- conn_out(Cli, Prim), acked(Cli, Prim, Pload);
+
+
 // Trigger start.
 begin("C", "foo")@1;
 
@@ -34,9 +42,10 @@ request(Prim, Pload, Cli)@async :- begin(Cli, Pload), conn_out(Cli, Prim);
 
 
 // Primary replicates to replicas and logs the replication.
-replicate(Rep, Pload, Prim, Cli)@async :- request(Prim, Pload, Cli), primary(Prim, Prim), replica(Prim, Rep);
-replicate_log(Prim, Rep, Pload) :- replicate(Rep, Pload, Prim, _);
-replicate_log(Prim, Rep, Pload)@next :- replicate_log(Prim, Rep, Pload);
+replicate_log(Prim, Rep, Pload, Cli) :- request(Prim, Pload, Cli), primary(Prim, Prim), replica(Prim, Rep);
+replicate_log(Prim, Rep, Pload, Cli)@next :- replicate_log(Prim, Rep, Pload, Cli);
+
+replicate(Rep, Pload, Prim, Cli)@async :- request(Prim, Pload, Cli), replicate_log(Prim, Rep, Pload, Cli);
 
 // Nodes in the network persist received requests.
 log(Prim, Pload) :- request(Prim, Pload, Cli);
@@ -48,19 +57,13 @@ replicate_ack(Prim, Rep, Pload, Cli)@async :- log(Rep, Pload), replicate(Rep, Pl
 replicate_acked(Prim, Rep, Pload) :- replicate_ack(Prim, Rep, Pload, _);
 replicate_acked(Prim, Rep, Pload)@next :- replicate_acked(Prim, Rep, Pload);
 
-missing_replicate_acked(Prim, Rep, Pload) :- replicate_log(Prim, Rep, Pload), notin replicate_acked(Prim, Rep, Pload);
-
 // Ack to client. Synchronous Primary/Backup.
-ack(Cli, Prim, Pload)@async :- conn_out(Prim, Cli), replicate_log(Prim, Rep, Pload), notin missing_replicate_acked(Prim, Rep, Pload), notin acked(Cli, Prim, Pload);
+ack(Cli, Prim, Pload)@async :- conn_out(Prim, Cli), num_replicate_log(Prim, Pload, CntLogged), num_replicate_acked(Prim, Pload, CntAcked), CntLogged == CntAcked, notin acked(Cli, Prim, Pload);
 acked(Cli, Prim, Pload) :- ack(Cli, Prim, Pload);
 acked(Cli, Prim, Pload)@next :- acked(Cli, Prim, Pload);
 
 
 // Track durability state.
-
-num_log(Prim, Pload, count<Node>) :- primary(Prim, Prim), log(Node, Pload);
-num_uncrashed(Prim, count<Node>) :- primary(Prim, Prim), network(Prim, Node), notin crash(Prim, Node, _);
-
 persisted_log(Prim, Pload) :- primary(Prim, Prim), num_log(Prim, Pload, CntLog), num_uncrashed(Prim, CntCorrect), CntLog > CntCorrect;
 persisted_log(Prim, Pload) :- primary(Prim, Prim), num_log(Prim, Pload, CntLog), num_uncrashed(Prim, CntCorrect), CntLog == CntCorrect;
 
