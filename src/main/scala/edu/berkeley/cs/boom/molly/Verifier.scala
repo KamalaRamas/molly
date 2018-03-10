@@ -136,7 +136,7 @@ class Verifier(
       MessageLoss(from, to, time)
     }
 
-    logger.warn(s"Testing with crashes $crashes and losses $messageLoss")
+    logger.warn(s"Testing with crashes ${crashes} and losses ${messageLoss}")
 
     val randomSpec = originalSpec.copy(crashes = crashes.toSet, omissions = messageLoss.toSet)
     val failProgram = DedalusTyper.inferTypes(randomSpec.addClockFacts(program))

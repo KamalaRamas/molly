@@ -54,13 +54,22 @@ object HTMLWriter {
     // Unfortunately, Argonaut doesn't seem to support streaming JSON writing, hence this code:
     var first: Boolean = true
     runsFile.print("[\n")
-    val executor = Executors.newFixedThreadPool(8) // Some parallelism when writing out DOT files
+
+    // Some parallelism when writing out DOT files
+    val executor = Executors.newFixedThreadPool(8)
 
     for (run <- runs) {
 
       if (!first) runsFile.print(",\n")
       runsFile.print(run.asJson.toString())
       first = false
+
+      // Write messages of this run to log file.
+      val logMsgs: String = "[" + run.messages.map(msg => s"'${msg.table}'").toSet.mkString(", ") + "]"
+      new PrintWriter(new File(outputDirectory, s"run_${run.iteration}_messages.txt")) {
+        write(logMsgs);
+        close;
+      }
 
       val renderSpacetime = writeGraphviz(SpacetimeDiagramGenerator.generate(run.failureSpec, run.messages), outputDirectory, s"run_${run.iteration}_spacetime")
       if (!disableDotRendering) executor.submit(renderSpacetime)
