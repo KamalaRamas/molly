@@ -32,6 +32,12 @@
                 overflow-y: auto;
                 overflow-x: hidden;
             }
+            .debugging-list {
+                margin-top: 18px;
+                font-size: 1.15em;
+                line-height: 1.5;
+            }
+            .debugging-list li { padding-bottom: 8px; }
         </style>
     </head>
 
@@ -45,8 +51,8 @@
 
         <div class = "container">
             <h2>Debugging</h2>
-            <div id = "debugging-pre"><h4 class = "debugging-suggestion"></h4></div>
-            <div id = "debugging-post"><p class = "debugging-suggestion"></p></div>
+            <div id = "debugging-pre"></div>
+            <div id = "debugging-post"></div>
         </div>
 
         <div class = "container">
@@ -77,7 +83,7 @@
             // Display debugging suggestion if available.
             $.get("debugging.txt", function(content, status) {
                 if (status == "success") {
-                    d3.select("#debugging-pre h4.debugging-suggestion").html(content);
+                    d3.select("#debugging-pre").html(content);
                 } else {
                     console.log("Could not load debugging.txt");
                 }
@@ -150,7 +156,7 @@
                     // Display debugging suggestion if available.
                     $.get("run_" + (newRun.iteration) + "_debugging.txt", function(content, status) {
                         if (status == "success") {
-                            d3.select("#debugging-post p.debugging-suggestion").html(content);
+                            d3.select("#debugging-post").html(content);
                         } else {
                             console.log("Could not load run_" + (newRun.iteration) + "_debugging.txt");
                         }

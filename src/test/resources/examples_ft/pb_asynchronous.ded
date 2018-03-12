@@ -27,7 +27,7 @@ conn_out(Cli, Prim)@next :- conn_out(Cli, Prim);
 num_log(Prim, Pload, count<Node>) :- primary(Prim, Prim), log(Node, Pload);
 num_uncrashed(Prim, count<Node>) :- primary(Prim, Prim), network(Prim, Node), notin crash(Prim, Node, _);
 num_replicate_log(Prim, Pload, count<Rep>) :- primary(Prim, Prim), replicate_log(Prim, Rep, Pload, _);
-num_replicate_acked(Prim, Pload, count<Rep>) :- primary(Prim, Prim), replicate_acked(Prim, Rep, Pload);
+// num_replicate_acked(Prim, Pload, count<Rep>) :- primary(Prim, Prim), replicate_acked(Prim, Rep, Pload);
 
 
 // Trigger start.
@@ -58,9 +58,9 @@ log(Rep, Pload) :- replicate(Rep, Pload, _, _);
 log(Rep, Pload)@next :- log(Rep, Pload);
 
 // Ack from replicas to primary.
-replicate_ack(Prim, Rep, Pload, Cli)@async :- log(Rep, Pload), replicate(Rep, Pload, Prim, Cli);
-replicate_acked(Prim, Rep, Pload) :- replicate_ack(Prim, Rep, Pload, _);
-replicate_acked(Prim, Rep, Pload)@next :- replicate_acked(Prim, Rep, Pload);
+// replicate_ack(Prim, Rep, Pload, Cli)@async :- log(Rep, Pload), replicate(Rep, Pload, Prim, Cli);
+// replicate_acked(Prim, Rep, Pload) :- replicate_ack(Prim, Rep, Pload, _);
+// replicate_acked(Prim, Rep, Pload)@next :- replicate_acked(Prim, Rep, Pload);
 
 
 // Track durability state.
