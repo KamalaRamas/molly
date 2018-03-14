@@ -23,12 +23,6 @@ conn_out("a", "C")@1;
 conn_out(Cli, Prim)@next :- conn_out(Cli, Prim);
 
 
-// System state tables (counting rows).
-num_log(Prim, Pload, count<Node>) :- primary(Prim, Prim), log(Node, Pload);
-num_uncrashed(Prim, count<Node>) :- primary(Prim, Prim), network(Prim, Node), notin crash(Prim, Node, _);
-num_replicate_log(Prim, Pload, count<Rep>) :- primary(Prim, Prim), replicate_log(Prim, Rep, Pload, _);
-// num_replicate_acked(Prim, Pload, count<Rep>) :- primary(Prim, Prim), replicate_acked(Prim, Rep, Pload);
-
 
 // Trigger start.
 begin("C", "foo")@1;
@@ -39,33 +33,19 @@ begin("C", "foo")@1;
 // Client sends request to primary.
 request(Prim, Pload, Cli)@async :- begin(Cli, Pload), conn_out(Cli, Prim);
 
-
-// Primary logs the replication and replicates to replicas.
-replicate_log(Prim, Rep, Pload, Cli) :- request(Prim, Pload, Cli), primary(Prim, Prim), replica(Prim, Rep);
-replicate_log(Prim, Rep, Pload, Cli)@next :- replicate_log(Prim, Rep, Pload, Cli);
-
 // Primary immediately acks to client. Asynchronous Primary/Backup.
 ack(Cli, Prim, Pload)@async :- request(Prim, Pload, Cli);
 acked(Cli, Prim, Pload) :- ack(Cli, Prim, Pload);
 acked(Cli, Prim, Pload)@next :- acked(Cli, Prim, Pload);
 
 // Primary replicates to replicas in background.
-replicate(Rep, Pload, Prim, Cli)@async :- request(Prim, Pload, Cli), replicate_log(Prim, Rep, Pload, Cli);
+replicate(Rep, Pload, Prim, Cli)@async :- request(Prim, Pload, Cli), replica(Prim, Rep);
 
 // Nodes in the network persist received requests.
 log(Prim, Pload) :- request(Prim, Pload, Cli);
 log(Rep, Pload) :- replicate(Rep, Pload, _, _);
 log(Rep, Pload)@next :- log(Rep, Pload);
 
-// Ack from replicas to primary.
-// replicate_ack(Prim, Rep, Pload, Cli)@async :- log(Rep, Pload), replicate(Rep, Pload, Prim, Cli);
-// replicate_acked(Prim, Rep, Pload) :- replicate_ack(Prim, Rep, Pload, _);
-// replicate_acked(Prim, Rep, Pload)@next :- replicate_acked(Prim, Rep, Pload);
-
-
-// Track durability state.
-persisted_log(Prim, Pload) :- primary(Prim, Prim), num_log(Prim, Pload, CntLog), num_uncrashed(Prim, CntCorrect), CntLog > CntCorrect;
-persisted_log(Prim, Pload) :- primary(Prim, Prim), num_log(Prim, Pload, CntLog), num_uncrashed(Prim, CntCorrect), CntLog == CntCorrect;
 
 
 // Invariants.
@@ -73,4 +53,4 @@ persisted_log(Prim, Pload) :- primary(Prim, Prim), num_log(Prim, Pload, CntLog),
 // E2E property: Any time we ACK a payload to a client, we expect
 // that payload to be persisted on all correct replicas.
 pre(Pload) :- acked(Cli, Prim, Pload);
-post(Pload) :- primary(Prim, Prim), persisted_log(Prim, Pload);
+post(Pload) :- log(Node, Pload), primary(Prim, Prim), notin crash(Node, Node, _), Node != Prim;

@@ -32,10 +32,19 @@
                 overflow-y: auto;
                 overflow-x: hidden;
             }
+            .debugging-wrapper { overflow: hidden; }
+            .box-left {
+                float: left;
+                width: 44%;
+            }
+            .box-right {
+                float: left;
+                width: 56%;
+            }
             .debugging-list {
-                margin-top: 18px;
+                margin-top: 22px;
                 font-size: 1.15em;
-                line-height: 1.5;
+                line-height: 1.75;
             }
             .debugging-list li { padding-bottom: 8px; }
         </style>
@@ -50,9 +59,21 @@
         </div>
 
         <div class = "container">
-            <h2>Debugging</h2>
-            <div id = "debugging-pre"></div>
-            <div id = "debugging-post"></div>
+
+            <div class = "debugging-wrapper">
+
+                <div class = "box-left">
+                    <h2>Debugging</h2>
+                    <div id = "debugging-pre"></div>
+                    <div id = "debugging-post"></div>
+                </div>
+
+                <div class = "box-right">
+                    <img src "" class = "img-responsive" />
+                </div>
+
+            </div>
+
         </div>
 
         <div class = "container">
@@ -162,6 +183,7 @@
                         }
                     }, "text");
 
+                    d3.select(".box-right > img").attr("src", "run_" + (newRun.iteration) + "_debugging_spacetime.svg");
                     d3.select("#spacetime img").attr("src", "run_" + (newRun.iteration) + "_spacetime.svg");
                     d3.select("#pre-provenance img").attr("src", "run_" + (newRun.iteration) + "_pre_provenance.svg");
                     d3.select("#post-provenance img").attr("src", "run_" + (newRun.iteration) + "_post_provenance.svg");
