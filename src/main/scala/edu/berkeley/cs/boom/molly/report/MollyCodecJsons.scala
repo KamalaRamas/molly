@@ -18,7 +18,7 @@ object MollyCodecJsons {
       StringDecodeJson.map(RunStatus.apply))
 
   implicit def RunCodecJson: EncodeJson[Run] =
-    jencode4L((run: Run) => (run.iteration, run.status, run.failureSpec, run.model))("iteration", "status", "failureSpec", "model")
+    jencode5L((run: Run) => (run.iteration, run.status, run.failureSpec, run.model, run.messages))("iteration", "status", "failureSpec", "model", "messages")
 
   implicit def FailureSpecCodecJson: CodecJson[FailureSpec] =
     casecodec6(FailureSpec.apply, FailureSpec.unapply)("eot", "eff", "maxCrashes", "nodes",
