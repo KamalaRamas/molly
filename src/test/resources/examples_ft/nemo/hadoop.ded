@@ -1,0 +1,34 @@
+// Logic.
+
+am(W, A)@next :- am(W, A);
+
+can_commit(Am, Task, Worker)@async :- task_attempt(Worker, Task), am(Worker, Am);
+
+commit(Am, Task, Worker) :- can_commit(Am, Task, Worker), notin committed(Am, Task);
+ok(Worker, Task)@async :- commit(Am, Task, Worker);
+no(Worker, Task)@async :- can_commit(Am, Task, Worker), notin commit(Am, Task, Worker);
+
+committed(Am, Task)@next :- commit(Am, Task, _);
+committed(Am, T)@next :- committed(Am, T);
+
+do_work(W, T)@next :- ok(W, T);
+done_commit(Am, T, W)@async :- do_work(W, T), am(W, Am);
+
+done(Am, T) :- done_commit(Am, T, _);
+done(A, T)@next :- done(A, T);
+
+
+// Correctness specification.
+
+pre(T) :- committed(Am, T), notin crash(Am, Am, _);
+post(T) :- done(_, T);
+
+
+// Init.
+
+am("w1", "am")@1;
+am("w2", "am")@1;
+
+task_attempt("w1", "task1")@1;
+task_attempt("w2", "task1")@4;
+task_attempt("w2", "task1")@5;

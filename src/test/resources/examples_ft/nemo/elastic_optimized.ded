@@ -1,0 +1,51 @@
+// Logic.
+
+member(N, O)@next :- member(N, O);
+primary(N, P)@next :- primary(N, P), notin view_change(N, P);
+
+write_msg(P, W)@async :- client_write(C, W), primary(C, P);
+
+seq(N, V)@next :- seq(N, V), notin write_msg(N, _), notin replicate(N, _, _);
+seq(N, V + 1)@next :- seq(N, V), write_msg(N, _);
+seq(N, V + 1)@next :- replicate(N, _, V);
+
+update_primary(P, N, W, S) :- write_msg(P, W), seq(P, S), member(P, N);
+replicate(N, W, S)@async :- update_primary(P, N, W, S);
+log(P, W, S)@next :- update_primary(P, N, W, S);
+
+// the buggy logic
+update_replica(N, W, S) :- replicate(N, W, S), notin log(N, _, S);
+// fixed?
+//update_replica(N, W, S) :- replicate(N, W, S), notin log(N, W, S);
+
+log(N, W, S)@next :- log(N, W, S), notin update_replica(N, _, S);
+log(N, W, S)@next :- update_replica(N, W, S);
+
+
+// Correctness specification.
+
+diff(N, M, S, W, W2) :- log(N, W, S), log(M, W2, S), W != W2;
+
+pre(W, S) :- log(_, W, S);
+post(W, S) :- log(N, W, S), notin diff(N, _, S, W, _);
+
+
+// Init.
+
+member("a", "b")@1;
+member("a", "c")@1;
+
+member("b", "c")@1;
+member("b", "a")@1;
+
+primary("C", "a")@1;
+
+client_write("C", "hi!")@1;
+
+primary("C", "b")@2;
+view_change("C", "a")@2;
+
+client_write("C", "oh no")@3;
+
+seq("a", 0)@1;
+seq("b", 0)@2;
