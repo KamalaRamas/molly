@@ -1,0 +1,35 @@
+unregister(Rm, Am, Job)@async :- finish(Am, Job), rm(Am, Rm);
+
+check(C, Rm, Am, Job)@async :- unregister(Rm, Am, Job), checker(Rm, C);
+
+timerr(Rm, "failover", 0) :- unregister(Rm, _, _);
+ok(Rm, Am, Job)@async :- check(C, Rm, Am, Job);
+
+tick1(Rm, Am, Job)@next :- ok(Rm, Am, Job);
+
+timerr(Rm, "ok", 1) :- ok(Rm, _, _);
+
+// happy case
+kill(Am, 7)@async :- timerr(Rm, "ok", 2), am(Rm, Am);
+
+// sad case
+kill(Am, 7)@async :- timerr(Rm, "failover", 2), am(Rm, Am), notin ok(Rm, Am, _);
+
+timerr(Am, "work", 0) :- finish(Am, _);
+timerr(Node, Type, Val + 1)@next :- timerr(Node, Type, Val);
+
+rm(Am, Rm)@next :- rm(Am, Rm);
+am(Am, Rm)@next :- am(Am, Rm);
+checker(Rm, C)@next :- checker(Rm, C);
+
+finish("am", 7)@1;
+rm("am", "rm")@1;
+am("rm", "am")@1;
+
+killed(Am, Job) :- kill(Am, Job);
+killed(Am, Job)@next :- killed(Am, Job);
+
+checker("rm", "c")@1;
+
+pre(Am) :- killed(Am, Job);
+post(A) :- timerr(A, "work", N), N > 7;
