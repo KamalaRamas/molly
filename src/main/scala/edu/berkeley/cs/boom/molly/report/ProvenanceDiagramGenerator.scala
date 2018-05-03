@@ -5,6 +5,7 @@ import scala.sys.process._
 import java.util.concurrent.Executors
 import scala.collection.mutable.{ Queue, HashMap }
 import java.io.{ File, FileWriter, FileOutputStream }
+import edu.berkeley.cs.boom.molly.ast._
 import edu.berkeley.cs.boom.molly.derivations.{ DerivationTreeNode, RuleNode, GoalNode }
 
 object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
@@ -312,7 +313,8 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
                       nest(linebreak <>
                         "\"id\": \"" + nodeID + "\"" <> comma <> linebreak <>
                         "\"label\": \"" + goal.tuple.toString + "\"" <> comma <> linebreak <>
-                        "\"table\": \"" + goal.tuple.table + "\""
+                        "\"table\": \"" + goal.tuple.table + "\"" <> comma <> linebreak <>
+                        "\"time\": \"" + goal.tuple.cols.last + "\""
                       ) <> linebreak
                     ) <> comma
                   )
@@ -365,6 +367,12 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
             val nodeID = s"rule${rule.id}"
             val ruleMapKey = s"${nodeID},${rule.rule.head.tableName}"
 
+            val timeType = rule.rule.head.time match {
+              case Some(Async()) => "async";
+              case Some(Next()) => "next";
+              case _ => "single";
+            }
+
             if (!seenRules.contains(ruleMapKey)) {
 
               val ruleData = super.pretty(
@@ -374,7 +382,8 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
                       nest(linebreak <>
                         "\"id\": \"" + nodeID + "\"" <> comma <> linebreak <>
                         "\"label\": \"" + rule.rule.head.tableName + "\"" <> comma <> linebreak <>
-                        "\"table\": \"" + rule.rule.head.tableName.split("_")(0) + "\""
+                        "\"table\": \"" + rule.rule.head.tableName.split("_")(0) + "\"" <> comma <> linebreak <>
+                        "\"type\": \"" + timeType + "\""
                       ) <> linebreak
                     ) <> comma
                   )
