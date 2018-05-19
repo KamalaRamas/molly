@@ -33,4 +33,3 @@ posto(Job, C) :- counts(Job, C);
 
 disagree(Job, Am1, Am2) :- commit(Am1, Job), commit(Am2, Job), Am1 != Am2;
 post(Job) :- done(_, Am, Job), notin disagree(Job, Am, _);
-
