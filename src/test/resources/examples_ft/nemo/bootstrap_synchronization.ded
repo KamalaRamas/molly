@@ -1,0 +1,37 @@
+data(Node, Data)@next :- data(Node, Data);
+
+
+join(Anchor, Joiner)@async :- do_join(Joiner), primary(Joiner, Anchor);
+
+timerr(Joiner, 0) :- do_join(Joiner);
+timerr(J, N+1)@next :- timerr(J, N);
+
+join(Anchor2, Joiner)@async :- timerr(Joiner, 2), secondary(Joiner, Anchor2);
+
+
+join_rsp(Joiner, Anchor, Data)@async :- join(Anchor, Joiner), data(Anchor, Data);
+
+data(Joiner, Data)@next :- join_rsp(Joiner, _, Data);
+
+
+primary(J, A)@next :- primary(J, A);
+secondary(J, A)@next :- secondary(J, A);
+
+
+pre(Data) :- data(Node, Data), Data == "new";
+post(Data) :- data(_, Data), votes(Data, Cnt), Cnt > 1;
+
+votes(Data, count<Node>) :- data(Node, Data), notin crash(Node, Node, _);
+
+
+
+data("n1", "new")@1;
+data("n2", "new")@1;
+data("n3", "old")@1;
+
+primary("n4", "n2")@1;
+// where is the bug, though, really?  the logic that decided that n3 was a valid secondary?  this is just wireframed here, since it isn't discussed
+// in the ticket.  so the root cause finding may not seem realistic.
+secondary("n4", "n3")@1;
+
+do_join("n4")@2; 
