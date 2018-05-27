@@ -1,0 +1,20 @@
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N cli,rm,am -t 8 -f 4 -c 1 --prov-diagrams failed-retrieval.ded"
+
+// NB: this could be made more realistic by having the client start the protocol rather than the Rm.\
+
+assign(Am, Rm, Cli, Job)@async :- begin(Rm, Am, Cli, Job);
+
+ok(Rm, Am, Cli, Job)@async :- assign(Am, Rm, Cli, Job);
+
+available(Cli, Am, Job)@async :- ok(Rm, Am, Cli, Job);
+available(C, A, J)@next :- available(C, A, J);
+
+status(Am, Cli, Job)@async :- available(Cli, Am, Job);
+response(Cli, Am, Job)@async :- status(Am, Cli, Job);
+
+response(C, A, J)@next :- response(C, A, J);
+
+pre(Cli, J) :- available(Cli, _, J), notin crash(Cli, Cli, _);
+post(Cli, J) :- response(Cli, _, J);
+
+begin("rm", "am", "cli", "job1")@1;

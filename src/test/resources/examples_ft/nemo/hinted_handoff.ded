@@ -1,4 +1,4 @@
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N n1,n2 -t 6 -f 4 -c 0 --prov-diagrams ca-2083.ded"
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N n1,n2 -t 6 -f 4 -c 0 --prov-diagrams hinted_handoff.ded"
 
 
 // Logic.

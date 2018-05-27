@@ -1,4 +1,4 @@
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N n1,n2,n3 -t 8 -f 6 -c 1  --prov-diagrams ca-1011.ded"
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N n1,n2,n3 -t 8 -f 6 -c 1  --prov-diagrams key_range.ded"
 
 seq(Node, Val)@next :- seq(Node, Val), notin req(Node, _);
 seq(Node, Val+1)@next :- seq(Node, Val), req(Node, _);

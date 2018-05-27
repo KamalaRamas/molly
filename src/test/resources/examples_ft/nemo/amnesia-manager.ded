@@ -1,0 +1,24 @@
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N rm,am -t 6 -f 4 -c 1 --prov-diagrams amnesia-manager.ded"
+
+deliver(Am, X, 1)@async :- begin(Rm, X, Am);
+
+timerr(Rm, X, Am, 0) :- begin(Rm, X, Am);
+
+timerr(Rm, X, Am, N+1)@next :- timerr(Rm, X, Am, N);
+
+deliver(Am, X, 2)@async :- timerr(Rm, X, Am, T), T == 3, notin unregister(Rm, Am, X);
+
+done(Am, X, N)@next :- done(Am, X, N);
+done(Am, X, N)@next :- deliver(Am, X, N);
+
+cnt(Am, X, count<N>) :- done(Am, X, N);
+
+unregister(Rm, Am, X)@async :- deliver(Am, X, _);
+unregister(Rm, Am, X)@next :- unregister(Rm, Am, X);
+
+
+pre(Am, X) :- done(Am, X, _);
+post(Am, X) :- done(Am, X, _), cnt(Am, X, 1);
+
+
+begin("rm", "job1", "am")@1;

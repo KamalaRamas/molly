@@ -1,0 +1,26 @@
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N rm,nm,am -t 8 -f 4 -c 1 --prov-diagrams failed-after-expiry.ded"
+
+container(Nm, Rm, X)@async :- begin(Rm, Nm, _, X);
+timerr(Rm, Nm, Am, X, 0) :- begin(Rm, Nm, Am, X);
+
+timerr(Rm, Nm, Am, X, N+1)@next :- timerr(Rm, Nm, Am, X, N);
+
+initialize(Nm, Am)@async :- init(Am, Nm);
+ok(Am, Nm, X)@async :- initialize(Nm, Am), container(Nm, _, X);
+
+initialize(N, A)@next :- initialize(N, A);
+
+ok(A, N, X)@next :- ok(A, N, X);
+
+expiry(Am, Rm, X)@async :- timerr(Rm, Nm, Am, X, 4);
+
+container(N, R, X)@next :- container(N, R, X);
+expiry(Am, Rm, X)@next :- expiry(Am, Rm, X);
+
+
+pre(Am) :- initialize(Nm, Am);
+post(Am) :- ok(Am, _, _);
+
+begin("rm", "nm", "am", 1)@1;
+init("am", "nm")@2;
+
