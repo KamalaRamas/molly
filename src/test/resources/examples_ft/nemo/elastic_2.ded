@@ -1,3 +1,6 @@
+// "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --EOT 8 --EFF 4 --crashes 0 --prov-diagrams --negative-support --nodes C,a,b,c src/test/resources/examples_ft/nemo/elastic_2.ded"
+
+
 member(N, O)@next :- member(N, O);
 
 primary(N, P)@next :- primary(N, P), notin view_change(N, _);

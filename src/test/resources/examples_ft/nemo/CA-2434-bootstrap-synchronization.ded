@@ -6,10 +6,11 @@ join(Anchor, Joiner)@async :- do_join(Joiner), primary(Joiner, Anchor);
 timerr(Joiner, 0) :- do_join(Joiner);
 timerr(J, N+1)@next :- timerr(J, N);
 
-join(Anchor2, Joiner)@async :- timerr(Joiner, 2), secondary(Joiner, Anchor2);
+join(Anchor2, Joiner)@async :- timerr(Joiner, 2), secondary(Joiner, Anchor2), notin join_rsp(Joiner, _, _);
 
 
 join_rsp(Joiner, Anchor, Data)@async :- join(Anchor, Joiner), data(Anchor, Data);
+join_rsp(J, A, D)@next :- join_rsp(J, A, D);
 
 data(Joiner, Data)@next :- join_rsp(Joiner, _, Data);
 
@@ -34,4 +35,4 @@ primary("n4", "n2")@1;
 // in the ticket.  so the root cause finding may not seem realistic.
 secondary("n4", "n3")@1;
 
-do_join("n4")@2; 
+do_join("n4")@2;
