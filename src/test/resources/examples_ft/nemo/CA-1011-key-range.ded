@@ -1,8 +1,11 @@
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N n1,n2,n3 -t 8 -f 6 -c 1 --prov-diagrams key_range.ded"
+// CA-1011
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes n1,n2,n3 --EOT 8 --EFF 6 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/CA-1011-key-range.ded"
+
+
+// Logic.
 
 seq(Node, Val)@next :- seq(Node, Val), notin req(Node, _);
 seq(Node, Val+1)@next :- seq(Node, Val), req(Node, _);
-
 
 timerr(Agent, Node, 0) :- begin(Agent, Node);
 timerr(A, N, V+1)@next :- timerr(A, N, V), notin retry(A, _);
@@ -14,15 +17,18 @@ timerr(A, N, 0) :- retry(A, N);
 resp(Agent, Val)@async :- req(Node, Agent), seq(Node, Val);
 req(Node, Agent)@async :- begin(Agent, Node);
 
-
 resp(N,V)@next :- resp(N,V);
+same(N1, N2, V) :- resp(N1, V), resp(N2, V), N1 != N2;
 
-begin("n2", "n1")@1;
-begin("n3", "n1")@3;
-seq("n1", 1)@1;
+
+// Correctness specification.
 
 pre(N) :- resp(N, _);
 post(N) :- resp(N, V), notin same(N, N2, _);
 
-same(N1, N2, V) :- resp(N1, V), resp(N2, V), N1 != N2;
 
+// Init.
+
+begin("n2", "n1")@1;
+begin("n3", "n1")@3;
+seq("n1", 1)@1;

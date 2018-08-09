@@ -1,4 +1,5 @@
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N n1,n2 -t 6 -f 4 -c 0 --prov-diagrams hinted_handoff.ded"
+// CA-2083, Racing schema and data message.
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes n1,n2 --EOT 6 --EFF 4 --crashes 0 --prov-diagrams src/test/resources/examples_ft/nemo/CA-2083-hinted-handoff.ded"
 
 
 // Logic.
