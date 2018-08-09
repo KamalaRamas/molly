@@ -1,5 +1,5 @@
 // ZK-1270, Setting local sent flag races with remote acknowledgement.
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N FF,LL,A -t 6 -f 3 -c 0 --prov-diagrams src/test/resources/examples_ft/nemo/ZK-1270-racing-sent-flag.ded"
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes FF,LL,A --EOT 6 --EFF 3 --crashes 0 --prov-diagrams src/test/resources/examples_ft/nemo/ZK-1270-racing-sent-flag.ded"
 
 
 // Logic.

@@ -1,5 +1,5 @@
 // MR-3858, Incorrect local logic when job result is committed from multiple workers to manager.
-// "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes am,w1,w2 --EOT 8 --EFF 4 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/hadoop.ded"
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes am,w1,w2 --EOT 8 --EFF 4 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/MR-3858-hadoop.ded"
 
 
 // Logic.
