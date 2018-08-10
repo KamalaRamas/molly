@@ -6,10 +6,10 @@
 
 schema_msg(N2, N1, S)@async :- begin_hh(N1, N2, S, _);
 hh_step2(N1, N2, D)@next :- begin_hh(N1, N2, _, D);
-data_msg(N2, N1 ,D)@async :- hh_step2(N1, N2, D);
+data_msg(N2, N1, D)@async :- hh_step2(N1, N2, D);
 
-schema(N2, N1, S)@next :- schema(N2, N1, S);
 schema(N2, N1, S) :- schema_msg(N2, N1, S);
+schema(N2, N1, S)@next :- schema(N2, N1, S);
 
 complete(N2, N1, S, D) :- data_msg(N2, N1, D), schema(N2, N1, S);
 complete(N2, N1, S, D)@next :- complete(N2, N1, S, D);

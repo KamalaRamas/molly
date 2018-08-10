@@ -8,7 +8,7 @@ newleader(F, L, Round)@async :- elected(L, Round), ff(L, F);
 timerr(L, R, 0) :- elected(L, R);
 timerr(L, R, C+1)@next :- timerr(L, R, C);
 
-sent_flag(L, R) :- timerr(L, R, C), C > 2;
+sent_flag(L, R)@next :- timerr(L, R, C), C > 1;
 ff(L, F)@next :- ff(L, F);
 
 attest(F, A, C)@async :- attestor(A, F, C);
