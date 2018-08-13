@@ -382,7 +382,7 @@ object ProvenanceDiagramGenerator extends GraphvizPrettyPrinter {
                       nest(linebreak <>
                         "\"id\": \"" + nodeID + "\"" <> comma <> linebreak <>
                         "\"label\": \"" + rule.rule.head.tableName + "\"" <> comma <> linebreak <>
-                        "\"table\": \"" + rule.rule.head.tableName.split("_")(0) + "\"" <> comma <> linebreak <>
+                        "\"table\": \"" + rule.rule.head.tableName.split("_prov\\d+")(0) + "\"" <> comma <> linebreak <>
                         "\"type\": \"" + timeType + "\""
                       ) <> linebreak
                     ) <> comma
