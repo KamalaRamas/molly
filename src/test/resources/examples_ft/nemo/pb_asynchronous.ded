@@ -22,6 +22,9 @@ replica("a", "b")@1;
 replica("a", "c")@1;
 replica(Prim, Rep)@next :- replica(Prim, Rep);
 
+client("C", "C")@1;
+client(Cli, Cli)@next :- client(Cli, Cli);
+
 conn_out("C", "a")@1;
 conn_out("a", "C")@1;
 conn_out(Cli, Prim)@next :- conn_out(Cli, Prim);
