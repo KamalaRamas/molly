@@ -1,5 +1,5 @@
 // Asynchronous Primary/Backup Replication.
-// "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --EOT 6 --EFF 4 --crashes 1 --prov-diagrams --negative-support --nodes C,a,b,c src/test/resources/examples_ft/nemo/pb_asynchronous.ded"
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --EOT 6 --EFF 4 --crashes 1 --prov-diagrams --negative-support --nodes C,a,b,c src/test/resources/examples_ft/nemo/pb_asynchronous.ded"
 
 
 // Network relationships.
