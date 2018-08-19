@@ -8,9 +8,13 @@ am(W, A)@next :- am(W, A);
 
 can_commit(Am, Task, Worker)@async :- task_attempt(Worker, Task), am(Worker, Am);
 
-commit(Am, Task, Worker) :- can_commit(Am, Task, Worker), notin committed(Am, Task);
+ccs(A, T, W) :- can_commit(A, T, W);
+ccs(A, T, W)@next :- ccs(A, T, W);
+ccc(A, T, count<W>) :- ccs(A, T, W);
+
+commit(Am, Task, Worker) :- can_commit(Am, Task, Worker), ccc(Am, Task, C), C == 1;
 ok(Worker, Task)@async :- commit(Am, Task, Worker);
-no(Worker, Task)@async :- can_commit(Am, Task, Worker), notin commit(Am, Task, Worker);
+no(Worker, Task)@async :- can_commit(Am, Task, Worker), ccc(Am, Task, C), C > 1;
 
 committed(Am, Task)@next :- commit(Am, Task, _);
 committed(Am, T)@next :- committed(Am, T);
