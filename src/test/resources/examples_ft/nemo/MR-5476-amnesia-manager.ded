@@ -1,5 +1,5 @@
 // MR-5476
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N rm,am -t 6 -f 4 -c 1 --prov-diagrams amnesia-manager.ded"
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes rm,am --EOT 6 --EFF 4 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/MR-5476-amnesia-manager.ded"
 
 deliver(Am, X, 1)@async :- begin(Rm, X, Am);
 

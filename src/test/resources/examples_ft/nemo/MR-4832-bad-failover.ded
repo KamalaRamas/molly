@@ -1,6 +1,8 @@
 // MR-4832
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes rm,am1,am2 --EOT 8 --EFF 6 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/MR-4832-bad-failover.ded"
 
 delegate(Am, Rm, Job)@async :- job(Rm, Job), primary(Rm, Am);
+
 // a job takes time...
 do_job(Am, Rm, Job)@next :- delegate(Am, Rm, Job);
 done(Rm, Am, Job)@async :- do_job(Am, Rm, Job);
