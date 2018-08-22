@@ -1,5 +1,5 @@
-// CA-1011
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes n1,n2,n3 --EOT 8 --EFF 6 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/CA-1011-key-range.ded"
+// CA-1011, message-message race between key range declaration of one node and network inquiry of the second.
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes N1,N2,N3 --EOT 8 --EFF 6 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/CA-1011-key-range.ded"
 
 
 // Logic.
@@ -8,27 +8,39 @@ seq(Node, Val)@next :- seq(Node, Val), notin req(Node, _);
 seq(Node, Val+1)@next :- seq(Node, Val), req(Node, _);
 
 timerr(Agent, Node, 0) :- begin(Agent, Node);
-timerr(A, N, V+1)@next :- timerr(A, N, V), notin retry(A, _);
+timerr(Agent, Node, 0) :- retry(Agent, Node);
+timerr(Agent, Node, V+1)@next :- timerr(Agent, Node, V), notin retry(Agent, _);
 
-retry(A, N) :- timerr(A, N, V), V > 1, notin resp(A, _);
-req(N, A)@async :- retry(A, N);
-timerr(A, N, 0) :- retry(A, N);
+retry(Agent, Node) :- timerr(Agent, Node, V), V > 1, notin resp(Agent, _);
+
+req(Node, Agent)@async :- begin(Agent, Node);
+req(Node, Agent)@async :- retry(Agent, Node);
 
 resp(Agent, Val)@async :- req(Node, Agent), seq(Node, Val);
-req(Node, Agent)@async :- begin(Agent, Node);
+resp(Agent, Val)@next :- resp(Agent, Val);
 
-resp(N,V)@next :- resp(N,V);
-same(N1, N2, V) :- resp(N1, V), resp(N2, V), N1 != N2;
+count_resp(Agent, Val, count<Val>) :- resp(Agent, Val);
+
+// same(Node, Other, Val) :- resp(Node, Val), resp(Other, Val), Node != Other;
+
+diff_ctr(Node, Other, 0) :- diff_ctr_start(Node, Other);
+diff_ctr(Node, Other, Ctr)@next :- diff_ctr(Node, Other, Ctr);
+diff_ctr(Node, Other, Ctr+1)@next :- diff_ctr(Node, Other, Ctr), resp(Node, Val), resp(Other, Val), Node != Other;
+
+count_diff_ctr(Node, Other, count<Ctr>) :- diff_ctr(Node, Other, Ctr);
 
 
 // Correctness specification.
 
-pre(N) :- resp(N, _);
-post(N) :- resp(N, V), notin same(N, N2, _);
+pre(Node) :- resp(Node, _);
+// post(Node) :- resp(Node, Val), notin same(Node, Other, _);
+post(Node) :- resp(Node, Val), count_diff_ctr(Node, Other, Ctr), Ctr == 1, Node != Other;
 
 
 // Init.
 
-begin("n2", "n1")@1;
-begin("n3", "n1")@3;
-seq("n1", 1)@1;
+seq("N1", 1)@1;
+begin("N2", "N1")@1;
+begin("N3", "N1")@3;
+diff_ctr_start("N2", "N3")@1;
+diff_ctr_start("N3", "N2")@1;

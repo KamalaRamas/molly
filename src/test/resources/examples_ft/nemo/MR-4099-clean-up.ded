@@ -1,13 +1,21 @@
-unregister(Rm, Am, Job)@async :- finish(Am, Job), rm(Am, Rm);
+// MR-4099, message-local race between notification message and clean-up completion.
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes am,rm,c --EOT 8 --EFF 6 --crashes 1 --prov-diagrams src/test/resources/examples_ft/nemo/MR-4099-clean-up.ded"
 
+
+// Logic.
+
+rm(Am, Rm)@next :- rm(Am, Rm);
+am(Am, Rm)@next :- am(Am, Rm);
+checker(Rm, C)@next :- checker(Rm, C);
+
+ok(Rm, Am, Job)@async :- check(C, Rm, Am, Job);
+unregister(Rm, Am, Job)@async :- finish(Am, Job), rm(Am, Rm);
 check(C, Rm, Am, Job)@async :- unregister(Rm, Am, Job), checker(Rm, C);
 
-timerr(Rm, "failover", 0) :- unregister(Rm, _, _);
-ok(Rm, Am, Job)@async :- check(C, Rm, Am, Job);
-
-tick1(Rm, Am, Job)@next :- ok(Rm, Am, Job);
-
 timerr(Rm, "ok", 1) :- ok(Rm, _, _);
+timerr(Am, "work", 0) :- finish(Am, _);
+timerr(Rm, "failover", 0) :- unregister(Rm, _, _);
+timerr(Node, Type, Val+1)@next :- timerr(Node, Type, Val);
 
 // happy case
 kill(Am, 7)@async :- timerr(Rm, "ok", 2), am(Rm, Am);
@@ -15,21 +23,19 @@ kill(Am, 7)@async :- timerr(Rm, "ok", 2), am(Rm, Am);
 // sad case
 kill(Am, 7)@async :- timerr(Rm, "failover", 2), am(Rm, Am), notin ok(Rm, Am, _);
 
-timerr(Am, "work", 0) :- finish(Am, _);
-timerr(Node, Type, Val + 1)@next :- timerr(Node, Type, Val);
-
-rm(Am, Rm)@next :- rm(Am, Rm);
-am(Am, Rm)@next :- am(Am, Rm);
-checker(Rm, C)@next :- checker(Rm, C);
-
-finish("am", 7)@1;
-rm("am", "rm")@1;
-am("rm", "am")@1;
-
 killed(Am, Job) :- kill(Am, Job);
 killed(Am, Job)@next :- killed(Am, Job);
 
-checker("rm", "c")@1;
+
+// Correctness specification.
 
 pre(Am) :- killed(Am, Job);
-post(A) :- timerr(A, "work", N), N > 7;
+post(Am) :- timerr(Am, "work", N), N > 7;
+
+
+// Init.
+
+rm("am", "rm")@1;
+am("rm", "am")@1;
+finish("am", 7)@1;
+checker("rm", "c")@1;
