@@ -1,6 +1,9 @@
-// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker -N cli,rm,am -t 8 -f 4 -c 1 --prov-diagrams failed-retrieval.ded"
+// MR-2783
+// sbt "run-main edu.berkeley.cs.boom.molly.SyncFTChecker --nodes cli,rm,am --EOT 8 --EFF 4 --crashes 1 --prov-diagrams --negative-support src/test/resources/examples_ft/nemo/MR-2783-failed-retrieval.ded"
+// NB: this could be made more realistic by having the client start the protocol rather than the Rm.
 
-// NB: this could be made more realistic by having the client start the protocol rather than the Rm.\
+
+// Logic.
 
 assign(Am, Rm, Cli, Job)@async :- begin(Rm, Am, Cli, Job);
 
@@ -10,11 +13,17 @@ available(Cli, Am, Job)@async :- ok(Rm, Am, Cli, Job);
 available(C, A, J)@next :- available(C, A, J);
 
 status(Am, Cli, Job)@async :- available(Cli, Am, Job);
-response(Cli, Am, Job)@async :- status(Am, Cli, Job);
 
+response(Cli, Am, Job)@async :- status(Am, Cli, Job);
 response(C, A, J)@next :- response(C, A, J);
+
+
+// Correctness specification.
 
 pre(Cli, J) :- available(Cli, _, J), notin crash(Cli, Cli, _);
 post(Cli, J) :- response(Cli, _, J);
+
+
+// Init.
 
 begin("rm", "am", "cli", "job1")@1;
